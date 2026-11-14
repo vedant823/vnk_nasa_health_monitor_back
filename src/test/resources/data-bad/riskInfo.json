@@ -1,0 +1,11 @@
+{
+  "risks": [
+    {
+      "id": "bad_risk",
+      "name": "Bad Risk",
+      "category": "physical",
+      "measurementIds": ["unknown_measurement"],
+      "reason": "References a measurement that does not exist."
+    }
+  ]
+}

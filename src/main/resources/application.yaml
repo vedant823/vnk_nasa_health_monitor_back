@@ -1,0 +1,20 @@
+spring:
+  application:
+    name: api
+  data:
+    mongodb:
+      uri: mongodb://localhost:27017/healthmonitor
+      auto-index-creation: true
+  jackson:
+    deserialization:
+      fail-on-unknown-properties: false
+
+app:
+  data-dir: jsonData
+  cors:
+    allowed-origins: http://localhost:5173,https://hoppscotch.io
+  defaults:
+    measurement-frequency-days: 7
+  notifications:
+    enabled: true
+    cron: "0 0 8 * * *"
