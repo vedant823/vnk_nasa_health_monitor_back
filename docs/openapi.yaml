@@ -134,6 +134,37 @@ paths:
           $ref: "#/components/responses/NotFound"
         "401":
           $ref: "#/components/responses/Unauthorized"
+    delete:
+      tags: [User data]
+      operationId: deleteMeasurement
+      summary: Delete a logged measurement
+      description:
+        Deletes the most recent reading, or the reading at the given
+        `measurementIndex` in the newest-first order the GET history endpoint
+        serves (0 = most recent). For baseline-relative measurements, the
+        baseline reading (the chronologically first one) cannot be deleted
+        while other readings exist; deleting it as the only reading also
+        clears the stored baseline, so a re-log starts a fresh one. The
+        last-taken time is recomputed from the remaining history. Returns an
+        empty 200 body.
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: "#/components/parameters/MeasurementID"
+        - name: measurementIndex
+          in: query
+          required: false
+          description: Index into the newest-first history (0 = most recent)
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Deleted (empty body)
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
   /users/measurements/{measurementID}/frequency:
     put:
       tags: [User data]

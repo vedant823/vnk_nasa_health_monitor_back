@@ -3,6 +3,7 @@ package org.vnk.healthmonitor.functional;
 import org.junit.jupiter.api.Test;
 
 import java.net.http.HttpResponse;
+import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
@@ -112,5 +113,72 @@ class ApiErrorsFunctionalTest extends FunctionalTestBase {
                 "{\"frequencyDays\":0}", authHeader(token));
 
         assertEquals(400, response.statusCode());
+    }
+
+    @Test
+    void deleteUnknownMeasurementReturns404() throws Exception {
+        String token = createAccount(uniqueUsername());
+
+        HttpResponse<String> response = send("DELETE", "/users/measurements/does_not_exist",
+                null, authHeader(token));
+
+        assertEquals(404, response.statusCode());
+    }
+
+    @Test
+    void deleteWithoutReadingsReturns404() throws Exception {
+        String token = createAccount(uniqueUsername());
+
+        HttpResponse<String> response = send("DELETE", "/users/measurements/white_blood_cells",
+                null, authHeader(token));
+
+        assertEquals(404, response.statusCode());
+    }
+
+    @Test
+    void deleteWithNegativeIndexReturns404() throws Exception {
+        String token = createAccount(uniqueUsername());
+        send("POST", "/users/measurements/white_blood_cells",
+                "{\"values\":[5200.0]}", authHeader(token));
+
+        HttpResponse<String> response = send("DELETE",
+                "/users/measurements/white_blood_cells?measurementIndex=-1",
+                null, authHeader(token));
+
+        assertEquals(404, response.statusCode());
+    }
+
+    @Test
+    void deleteBaselineReadingWhileOthersExistReturns400() throws Exception {
+        String token = createAccount(uniqueUsername());
+        // body_mass_change is baseline-relative: the first reading becomes
+        // the baseline and must not be deletable while others exist.
+        send("POST", "/users/measurements/body_mass_change",
+                "{\"values\":[70.0]}", authHeader(token));
+        send("POST", "/users/measurements/body_mass_change",
+                "{\"values\":[68.0]}", authHeader(token));
+
+        // Index 1 in the newest-first history is the baseline reading.
+        HttpResponse<String> response = send("DELETE",
+                "/users/measurements/body_mass_change?measurementIndex=1",
+                null, authHeader(token));
+
+        assertEquals(400, response.statusCode());
+    }
+
+    @Test
+    void deleteSoleBaselineReadingSucceedsAndClearsTheBaseline() throws Exception {
+        String token = createAccount(uniqueUsername());
+        send("POST", "/users/measurements/body_mass_change",
+                "{\"values\":[70.0]}", authHeader(token));
+
+        HttpResponse<String> delete = send("DELETE", "/users/measurements/body_mass_change",
+                null, authHeader(token));
+        assertEquals(200, delete.statusCode());
+
+        HttpResponse<String> history = send("GET", "/users/measurements/body_mass_change",
+                null, authHeader(token));
+        List<MeasurementSetDto> remaining = parseList(history.body(), MeasurementSetDto.class);
+        assertEquals(0, remaining.size());
     }
 }

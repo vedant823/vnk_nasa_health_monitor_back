@@ -56,6 +56,20 @@ class CorsFunctionalTest extends FunctionalTestBase {
     }
 
     @Test
+    void preflightForDeleteIsAccepted() throws Exception {
+        HttpResponse<String> preflight = send("OPTIONS", "/users/measurements/m1", null, Map.of(
+                "Origin", HOPPSCOTCH,
+                "Access-Control-Request-Method", "DELETE",
+                "Access-Control-Request-Headers", "authorization"));
+
+        assertEquals(200, preflight.statusCode());
+        assertEquals(HOPPSCOTCH,
+                preflight.headers().firstValue("Access-Control-Allow-Origin").orElse(null));
+        assertTrue(preflight.headers().firstValue("Access-Control-Allow-Methods")
+                .orElse("").contains("DELETE"));
+    }
+
+    @Test
     void otherOriginsAreRejected() throws Exception {
         HttpResponse<String> preflight = send("OPTIONS", "/data/risks", null, Map.of(
                 "Origin", "https://evil.example.com",

@@ -140,6 +140,60 @@ public class UserDataService {
     }
 
     /**
+     * Deletes one logged reading: the most recent one by default, or the
+     * one at {@code measurementIndex} in the newest-first order the GET
+     * endpoint serves (0 = most recent). The baseline reading of a
+     * baseline-relative measurement (the chronologically first one) is
+     * protected: it cannot be deleted while other readings exist, and
+     * deleting it as the only reading also clears the stored baseline so
+     * a re-log starts a fresh one. The last-taken time is recomputed from
+     * the remaining history so the reminder math stays correct.
+     */
+    public void deleteMeasurement(UserDocument user, String measurementId, Integer measurementIndex) {
+        Measurement measurement = requireMeasurement(measurementId);
+        List<MeasurementSet> stored = user.getMeasurementHistory().get(measurementId);
+        if (stored == null || stored.isEmpty()) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND,
+                    "No readings logged for " + measurementId);
+        }
+        // Sorted exactly like getMeasurements, so indexes match what GET serves.
+        List<MeasurementSet> sorted = new ArrayList<>(stored);
+        sorted.sort(Comparator.comparing(MeasurementSet::getTimestamp).reversed());
+        int position = measurementIndex != null ? measurementIndex : 0;
+        if (position < 0 || position >= sorted.size()) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND,
+                    "Invalid measurement index: " + measurementIndex);
+        }
+        MeasurementSet target = sorted.get(position);
+
+        if (isBaselineRelative(measurement) && target == stored.get(0)) {
+            if (stored.size() > 1) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                        "The baseline reading cannot be deleted while other readings exist");
+            }
+            // The only reading is going away, so its baseline goes with it.
+            user.getMeasurementBaselines().remove(measurementId);
+        }
+
+        stored.remove(target);
+        if (stored.isEmpty()) {
+            user.getMeasurementHistory().remove(measurementId);
+            user.getMeasurementLastTaken().remove(measurementId);
+        } else {
+            user.getMeasurementLastTaken().put(measurementId, stored.stream()
+                    .map(MeasurementSet::getTimestamp)
+                    .max(Instant::compareTo)
+                    .orElseThrow());
+        }
+        userData.save(user);
+    }
+
+    private boolean isBaselineRelative(Measurement measurement) {
+        return measurement.category() == MeasurementCategory.NUMERICAL
+                && measurement.baselineMode() != BaselineMode.NONE;
+    }
+
+    /**
      * A copy of the set whose values are expressed as the change from the
      * user's baseline (readings without a usable baseline stay raw).
      */

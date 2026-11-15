@@ -4,6 +4,7 @@ import org.junit.jupiter.api.Test;
 
 import java.net.http.HttpResponse;
 import java.util.List;
+import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -85,5 +86,29 @@ class UserJourneyFunctionalTest extends FunctionalTestBase {
         assertTrue(evaluation.advice().stream()
                 .anyMatch(a -> a.contains("High white cell count")));
         assertTrue(evaluation.reason().contains("above the normal range"));
+
+        // 10. Deleting the most recent reading leaves the older one. The
+        //     request comes from a browser-like origin, so the response
+        //     must carry the CORS allow-origin header.
+        Map<String, String> deleteHeaders = authHeader(token);
+        deleteHeaders.put("Origin", "https://hoppscotch.io");
+        HttpResponse<String> delete = send("DELETE", "/users/measurements/white_blood_cells",
+                null, deleteHeaders);
+        assertEquals(200, delete.statusCode());
+        assertEquals("https://hoppscotch.io",
+                delete.headers().firstValue("Access-Control-Allow-Origin").orElse(null));
+
+        HttpResponse<String> historyAfterDelete = send("GET", "/users/measurements/white_blood_cells",
+                null, authHeader(token));
+        assertEquals(200, historyAfterDelete.statusCode());
+        List<MeasurementSetDto> remaining = parseList(historyAfterDelete.body(), MeasurementSetDto.class);
+        assertEquals(1, remaining.size());
+        assertEquals(List.of(5200.0), remaining.get(0).values());
+
+        // 11. An out-of-range index is a 404.
+        HttpResponse<String> badIndex = send("DELETE",
+                "/users/measurements/white_blood_cells?measurementIndex=5",
+                null, authHeader(token));
+        assertEquals(404, badIndex.statusCode());
     }
 }

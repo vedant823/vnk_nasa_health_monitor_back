@@ -14,6 +14,7 @@ import org.vnk.healthmonitor.service.NotificationScheduler;
 import org.vnk.healthmonitor.service.UserDataService;
 import org.vnk.healthmonitor.service.UserLoginService;
 import org.vnk.healthmonitor.service.UserReminderService;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -74,6 +75,19 @@ public class UserController {
             @RequestBody LogMeasurementRequest request) {
         UserDocument user = userLoginService.resolveUser(authorization);
         userDataService.logMeasurement(user, measurementId, request);
+    }
+
+    /**
+     * Deletes the user's most recent reading of a measurement, or the
+     * reading at the given newest-first index (0 = most recent).
+     */
+    @DeleteMapping("/users/measurements/{measurementID}")
+    public void deleteMeasurement(
+            @RequestHeader("Authorization") String authorization,
+            @PathVariable("measurementID") String measurementId,
+            @RequestParam(name = "measurementIndex", required = false) Integer measurementIndex) {
+        UserDocument user = userLoginService.resolveUser(authorization);
+        userDataService.deleteMeasurement(user, measurementId, measurementIndex);
     }
 
     /**

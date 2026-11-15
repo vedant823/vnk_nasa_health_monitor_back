@@ -22,6 +22,7 @@ import java.util.List;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -185,6 +186,136 @@ class UserDataServiceTest {
 
         assertEquals(3, user.frequencyOf("wbc"));
         verify(userData).save(user);
+    }
+
+    @Test
+    void deleteDefaultsToTheMostRecentReading() {
+        givenMeasurement(plainMeasurement("wbc"));
+        seedHistory("wbc", NOW.minusSeconds(86400), NOW);
+
+        userDataService.deleteMeasurement(user, "wbc", null);
+
+        List<MeasurementSet> stored = user.getMeasurementHistory().get("wbc");
+        assertEquals(1, stored.size());
+        assertEquals(NOW.minusSeconds(86400), stored.get(0).getTimestamp());
+        verify(userData).save(user);
+    }
+
+    @Test
+    void deleteByIndexRemovesThatReadingFromTheNewestFirstOrder() {
+        givenMeasurement(plainMeasurement("wbc"));
+        Instant oldest = NOW.minusSeconds(2 * 86400);
+        seedHistory("wbc", oldest, NOW.minusSeconds(86400), NOW);
+
+        userDataService.deleteMeasurement(user, "wbc", 1);
+
+        List<MeasurementSet> stored = user.getMeasurementHistory().get("wbc");
+        assertEquals(2, stored.size());
+        // The middle reading (yesterday) is gone; oldest and newest remain.
+        assertTrue(stored.stream().anyMatch(s -> s.getTimestamp().equals(oldest)));
+        assertTrue(stored.stream().anyMatch(s -> s.getTimestamp().equals(NOW)));
+    }
+
+    @Test
+    void deleteWithInvalidIndexReturns404() {
+        givenMeasurement(plainMeasurement("wbc"));
+        seedHistory("wbc", NOW);
+
+        assertThrows404(() -> userDataService.deleteMeasurement(user, "wbc", -1));
+        assertThrows404(() -> userDataService.deleteMeasurement(user, "wbc", 1));
+    }
+
+    @Test
+    void deleteWithUnknownMeasurementReturns404() {
+        when(dataRetrievalService.getMeasurement("nope")).thenThrow(
+                new ResponseStatusException(HttpStatus.NOT_FOUND, "Unknown measurement: nope"));
+
+        assertThrows404(() -> userDataService.deleteMeasurement(user, "nope", null));
+    }
+
+    @Test
+    void deleteWithoutReadingsReturns404() {
+        givenMeasurement(plainMeasurement("wbc"));
+
+        assertThrows404(() -> userDataService.deleteMeasurement(user, "wbc", null));
+    }
+
+    @Test
+    void deleteRecomputesLastTakenFromTheRemainingHistory() {
+        givenMeasurement(plainMeasurement("wbc"));
+        Instant older = NOW.minusSeconds(86400);
+        seedHistory("wbc", older, NOW);
+        user.getMeasurementLastTaken().put("wbc", NOW);
+
+        userDataService.deleteMeasurement(user, "wbc", null);
+
+        assertEquals(older, user.lastTakenOf("wbc"));
+    }
+
+    @Test
+    void deleteLastReadingRemovesLastTaken() {
+        givenMeasurement(plainMeasurement("wbc"));
+        seedHistory("wbc", NOW);
+        user.getMeasurementLastTaken().put("wbc", NOW);
+
+        userDataService.deleteMeasurement(user, "wbc", null);
+
+        assertNull(user.lastTakenOf("wbc"));
+        assertNull(user.getMeasurementHistory().get("wbc"));
+    }
+
+    @Test
+    void deletingTheNewestOfABaselineRelativeMeasurementIsAllowed() {
+        givenMeasurement(percentMeasurement("body_mass"));
+        seedHistory("body_mass", NOW.minusSeconds(86400), NOW);
+        user.recordBaselineIfAbsent("body_mass", 70.0);
+
+        userDataService.deleteMeasurement(user, "body_mass", 0);
+
+        assertEquals(1, user.getMeasurementHistory().get("body_mass").size());
+        // The baseline survives: it was recorded from the first reading.
+        assertEquals(70.0, user.baselineOf("body_mass"));
+    }
+
+    @Test
+    void deleteBaselineReadingRejectedWhileOtherReadingsExist() {
+        givenMeasurement(percentMeasurement("body_mass"));
+        seedHistory("body_mass", NOW.minusSeconds(86400), NOW);
+
+        ResponseStatusException e = assertThrows(ResponseStatusException.class,
+                () -> userDataService.deleteMeasurement(user, "body_mass", 1));
+
+        assertEquals(HttpStatus.BAD_REQUEST, e.getStatusCode());
+        // Nothing was deleted.
+        assertEquals(2, user.getMeasurementHistory().get("body_mass").size());
+    }
+
+    @Test
+    void deleteSoleBaselineReadingAlsoClearsTheBaseline() {
+        givenMeasurement(percentMeasurement("body_mass"));
+        seedHistory("body_mass", NOW);
+        user.recordBaselineIfAbsent("body_mass", 70.0);
+        user.getMeasurementLastTaken().put("body_mass", NOW);
+
+        userDataService.deleteMeasurement(user, "body_mass", null);
+
+        assertNull(user.getMeasurementHistory().get("body_mass"));
+        assertNull(user.baselineOf("body_mass"));
+        assertNull(user.lastTakenOf("body_mass"));
+        verify(userData).save(user);
+    }
+
+    private void seedHistory(String measurementId, Instant... times) {
+        List<MeasurementSet> list = user.getMeasurementHistory()
+                .computeIfAbsent(measurementId, id -> new java.util.ArrayList<>());
+        for (Instant time : times) {
+            list.add(new MeasurementSet(measurementId, "user", time, List.of(1.0), null));
+        }
+    }
+
+    private void assertThrows404(Runnable action) {
+        ResponseStatusException e = assertThrows(ResponseStatusException.class, action::run);
+        assertEquals(HttpStatus.NOT_FOUND, e.getStatusCode());
     }
 
     @Test

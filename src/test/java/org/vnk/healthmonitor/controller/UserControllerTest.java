@@ -25,6 +25,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
@@ -93,6 +94,24 @@ class UserControllerTest {
         verify(userDataService).logMeasurement(org.mockito.ArgumentMatchers.eq(user),
                 eq("m1"), captor.capture());
         assertEquals(List.of(5200.0), captor.getValue().values());
+    }
+
+    @Test
+    void deleteMeasurementDelegatesWithoutIndex() throws Exception {
+        mockMvc.perform(delete("/users/measurements/m1").header(AUTH, BEARER))
+                .andExpect(status().isOk());
+
+        verify(userDataService).deleteMeasurement(user, "m1", null);
+    }
+
+    @Test
+    void deleteMeasurementDelegatesWithIndex() throws Exception {
+        mockMvc.perform(delete("/users/measurements/m1")
+                        .header(AUTH, BEARER)
+                        .param("measurementIndex", "2"))
+                .andExpect(status().isOk());
+
+        verify(userDataService).deleteMeasurement(user, "m1", 2);
     }
 
     @Test

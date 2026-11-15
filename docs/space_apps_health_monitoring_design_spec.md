@@ -54,6 +54,10 @@
       * Logs one reading as a `MeasurementSet` and updates the measurement's last-taken time, which drives reminders and risk scoring. The first logged reading of a baseline-relative measurement becomes the user's baseline; later readings are stored raw and converted on the way out.
       * Body: `values` (list of numbers, required for numerical measurements — finite, and non-negative unless the measurement `canBeNegative`) or `image` (base64 string, required for visual measurements)
       * Outputs nothing (empty 200 body). Errors: 404 unknown measurement, 400 missing or invalid values/image
+    * `DELETE /users/measurements/{measurementID}`
+      * Deletes the most recent measurement, or the measurement of index `measurementIndex` if it is provided. The index counts from the newest-first order the GET history endpoint serves (0 = most recent). For baseline-relative measurements, the baseline reading (the chronologically first one) cannot be deleted while other readings exist; deleting it as the only reading also clears the stored baseline, so a re-log starts a fresh one. The last-taken time is recomputed from the remaining history so reminders stay correct.
+      * Query: `measurementIndex` (integer, optional)
+      * Outputs nothing. Errors: 404 unknown measurement, 404 invalid index, 404 no readings logged, 400 deleting the baseline reading while other readings exist
     * `PUT /users/measurements/{measurementID}/frequency`
       * Sets how many days pass between reminders for one measurement (the frontend's frequency dropdown). The next due date becomes last-taken plus this many days.
       * Body: `frequencyDays` (integer, minimum 1)

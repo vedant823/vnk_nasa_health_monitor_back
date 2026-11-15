@@ -25,7 +25,8 @@ docker-compose up -d     # MongoDB
 ```
 
 The CORS config already allows `https://hoppscotch.io`, so the Hoppscotch web app can call the
-API directly once it is running.
+API directly once it is running. All user-endpoint methods (GET, POST, PUT, DELETE) are
+preflight-allowed, so DELETE works from the Hoppscotch web app too.
 
 ## 2. Create an account
 
@@ -95,6 +96,12 @@ Use the IDs from these responses in the URLs below — nothing needs to be hardc
   ```json
   {"frequencyDays": 3}
   ```
+* `DELETE /users/measurements/white_blood_cells` — delete the most recent reading.
+  Add `?measurementIndex=N` to delete the reading at index N of the newest-first
+  history (0 = most recent, matching the GET history order). For baseline-relative
+  measurements the baseline reading (the chronologically first one) is protected:
+  it returns 400 while other readings exist, and deleting it as the only reading
+  also clears the baseline so a re-log starts a fresh one.
 * `GET /users/upcoming?withinDays=30` — reminders due in the next N days, ordered by due date
 * `GET /users/risks` — every risk score for the user
 * `GET /users/risks/immune_dysregulation` — one risk's score, advice, and reason
@@ -113,5 +120,7 @@ Use the IDs from these responses in the URLs below — nothing needs to be hardc
 | Missing `Authorization` header     | 400  |
 | Invalid token / wrong password     | 401  |
 | Unknown measurement or risk ID     | 404  |
+| Invalid `measurementIndex` / no readings logged | 404 |
+| Deleting a baseline reading while other readings exist | 400 |
 | Duplicate username on creation     | 409  |
 | Validation error (e.g. `frequencyDays: 0`) | 400 |
