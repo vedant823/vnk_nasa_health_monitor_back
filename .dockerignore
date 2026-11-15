@@ -10,5 +10,4 @@ out
 .gitattributes
 .gitignore
 docker-compose.yml
-Dockerfile
 .dockerignore
