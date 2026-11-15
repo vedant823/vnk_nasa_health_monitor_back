@@ -1,9 +1,10 @@
 spring:
   application:
     name: api
+  mongodb:
+    uri: mongodb://localhost:27017/healthmonitor
   data:
     mongodb:
-      uri: mongodb://localhost:27017/healthmonitor
       auto-index-creation: true
   jackson:
     deserialization:

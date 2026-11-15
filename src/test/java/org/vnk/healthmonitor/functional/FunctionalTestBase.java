@@ -17,6 +17,7 @@ import java.net.http.HttpResponse;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.fail;
@@ -28,7 +29,9 @@ import static org.junit.jupiter.api.Assertions.fail;
  *
  * The database is the Dockerized MongoDB from docker-compose.yml
  * (mongodb://localhost:27017); tests use a dedicated functional database
- * so dev data stays untouched.
+ * so dev data stays untouched. That functional database is dropped before
+ * each test class and again when the test JVM exits, so test runs leave
+ * no permanent data behind.
  *
  * Tagged "functional" and excluded from the default `test` task; run with
  * `docker-compose up -d` first, then `./gradlew functionalTest`.
@@ -39,18 +42,47 @@ public abstract class FunctionalTestBase {
 
     static final String MONGO_URI = "mongodb://localhost:27017/healthmonitor-functional";
 
+    private static final String MONGO_HOST = "mongodb://localhost:27017";
+    private static final String FUNCTIONAL_DB = "healthmonitor-functional";
+    private static final AtomicBoolean CLEANUP_HOOK_REGISTERED = new AtomicBoolean(false);
+
     @DynamicPropertySource
     static void mongoProperties(DynamicPropertyRegistry registry) {
-        registry.add("spring.data.mongodb.uri", () -> MONGO_URI);
+        // Spring Boot 4 renamed the property: spring.data.mongodb.uri is
+        // deprecated at error level and silently ignored, which used to
+        // send every test (and the dev app) to Mongo's default "test" db.
+        registry.add("spring.mongodb.uri", () -> MONGO_URI);
     }
 
     @BeforeAll
     static void requireDockerizedMongo() {
-        try (var client = MongoClients.create("mongodb://localhost:27017")) {
+        try (var client = MongoClients.create(MONGO_HOST)) {
             client.listDatabaseNames().first();
+            // Clean slate for this class: no data can leak in from earlier
+            // runs (or from the previous class), and nothing accumulates.
+            client.getDatabase(FUNCTIONAL_DB).drop();
+            registerCleanupHook();
         } catch (Exception e) {
             fail("MongoDB is not reachable on localhost:27017. "
                     + "Start it first with: docker-compose up -d");
+        }
+    }
+
+    /**
+     * Registers (once per JVM) a shutdown hook that drops the functional
+     * database, so a finished test run leaves no permanent data in the
+     * Dockerized MongoDB — which otherwise sits on a named volume and
+     * survives `docker-compose down`.
+     */
+    private static void registerCleanupHook() {
+        if (CLEANUP_HOOK_REGISTERED.compareAndSet(false, true)) {
+            Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+                try (var client = MongoClients.create(MONGO_HOST)) {
+                    client.getDatabase(FUNCTIONAL_DB).drop();
+                } catch (Exception ignored) {
+                    // The JVM is already shutting down; nothing to report to.
+                }
+            }, "functional-db-cleanup"));
         }
     }
 
