@@ -2,6 +2,8 @@ package org.vnk.healthmonitor.service;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import org.vnk.healthmonitor.domain.dto.BaselineMode;
+import org.vnk.healthmonitor.domain.dto.Badge;
+import org.vnk.healthmonitor.domain.dto.Criterion;
 import org.vnk.healthmonitor.domain.dto.Instruction;
 import org.vnk.healthmonitor.domain.dto.Measurement;
 import org.vnk.healthmonitor.domain.dto.MeasurementCategory;
@@ -14,6 +16,7 @@ import tools.jackson.core.JacksonException;
 import tools.jackson.databind.ObjectMapper;
 
 import java.io.File;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -41,6 +44,9 @@ public class DataRetrievalService {
     private record DetailsFile(List<RawMeasurement> measurements) {
     }
 
+    private record BadgeFile(List<Badge> badges) {
+    }
+
     @JsonIgnoreProperties(ignoreUnknown = true)
     private record RawMeasurement(
             String id,
@@ -59,11 +65,13 @@ public class DataRetrievalService {
 
     private final Map<String, Measurement> measurements = new HashMap<>();
     private final Map<String, RiskFactor> risks = new LinkedHashMap<>();
+    private final List<Badge> badges = new ArrayList<>();
 
     public DataRetrievalService(@Value("${app.data-dir}") String dataDir) {
         ObjectMapper mapper = new ObjectMapper();
         loadRisks(mapper, dataDir);
         loadMeasurements(mapper, dataDir);
+        loadBadges(mapper, dataDir);
     }
 
     private void loadRisks(ObjectMapper mapper, String dataDir) {
@@ -125,6 +133,37 @@ public class DataRetrievalService {
     }
 
     /**
+     * Loads badges.json and validates every criterion's measurement IDs
+     * against the loaded measurements, so a typo in the JSON aborts the
+     * application at startup instead of silently disabling a badge.
+     */
+    private void loadBadges(ObjectMapper mapper, String dataDir) {
+        try {
+            BadgeFile file = mapper.readValue(new File(dataDir, "badges.json"), BadgeFile.class);
+            badges.addAll(file.badges());
+        } catch (JacksonException e) {
+            throw new IllegalStateException("Failed to load badges.json", e);
+        }
+        for (Badge badge : badges) {
+            if (badge.title() == null || badge.title().isBlank()) {
+                throw new IllegalStateException("Badge without a title in badges.json");
+            }
+            for (Criterion criterion : badge.criteria()) {
+                if (criterion.count() < 1) {
+                    throw new IllegalStateException("Badge " + badge.title()
+                            + " has a criterion with count < 1");
+                }
+                for (String measurementId : criterion.measurementType()) {
+                    if (!measurements.containsKey(measurementId)) {
+                        throw new IllegalStateException("Badge " + badge.title()
+                                + " references unknown measurement " + measurementId);
+                    }
+                }
+            }
+        }
+    }
+
+    /**
      * Returns a measurement's details and instructions.
      */
     public Measurement getMeasurement(String measurementId) {
@@ -158,5 +197,12 @@ public class DataRetrievalService {
      */
     public List<String> getMeasurementIds() {
         return List.copyOf(measurements.keySet());
+    }
+
+    /**
+     * Returns every badge definition from badges.json, in file order.
+     */
+    public List<Badge> getBadges() {
+        return List.copyOf(badges);
     }
 }

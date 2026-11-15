@@ -1,0 +1,16 @@
+{
+  "badges": [
+    {
+      "title": "Zero Count",
+      "criteria": [
+        {
+          "measurementType": ["m1"],
+          "distinctDays": false,
+          "streak": false,
+          "isOk": false,
+          "count": 0
+        }
+      ]
+    }
+  ]
+}

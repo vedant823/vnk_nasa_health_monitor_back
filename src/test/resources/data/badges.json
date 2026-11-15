@@ -1,0 +1,95 @@
+{
+  "badges": [
+    {
+      "title": "One Reading",
+      "criteria": [
+        {
+          "measurementType": ["m1", "m2"],
+          "distinctDays": false,
+          "streak": false,
+          "isOk": false,
+          "count": 1
+        }
+      ]
+    },
+    {
+      "title": "Two Days",
+      "criteria": [
+        {
+          "measurementType": ["m1"],
+          "distinctDays": true,
+          "streak": false,
+          "isOk": false,
+          "count": 2
+        }
+      ]
+    },
+    {
+      "title": "Three Day Streak",
+      "criteria": [
+        {
+          "measurementType": ["m1", "m3"],
+          "distinctDays": true,
+          "streak": true,
+          "isOk": false,
+          "count": 3
+        }
+      ]
+    },
+    {
+      "title": "Green Days",
+      "criteria": [
+        {
+          "measurementType": ["m1"],
+          "distinctDays": true,
+          "streak": false,
+          "isOk": true,
+          "count": 2
+        }
+      ]
+    },
+    {
+      "title": "Green Percent",
+      "criteria": [
+        {
+          "measurementType": ["m4"],
+          "distinctDays": false,
+          "streak": false,
+          "isOk": true,
+          "count": 1
+        }
+      ]
+    },
+    {
+      "title": "Impossible Visual",
+      "criteria": [
+        {
+          "measurementType": ["m2"],
+          "distinctDays": false,
+          "streak": false,
+          "isOk": true,
+          "count": 1
+        }
+      ]
+    },
+    {
+      "title": "Two Criteria",
+      "criteria": [
+        {
+          "measurementType": ["m1"],
+          "distinctDays": false,
+          "streak": false,
+          "isOk": false,
+          "count": 1
+        },
+        {
+          "measurementType": ["m3"],
+          "distinctDays": false,
+          "streak": false,
+          "isOk": false,
+          "count": 1
+        }
+      ]
+    }
+  ]
+}

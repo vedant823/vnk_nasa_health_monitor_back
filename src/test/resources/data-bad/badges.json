@@ -1,0 +1,16 @@
+{
+  "badges": [
+    {
+      "title": "Fine Badge",
+      "criteria": [
+        {
+          "measurementType": ["m1"],
+          "distinctDays": false,
+          "streak": false,
+          "isOk": false,
+          "count": 1
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,153 @@
+{
+  "badges": [
+    {
+      "title": "First Check-in",
+      "criteria": [
+        {
+          "measurementType": [
+            "white_blood_cells",
+            "lymphocytes",
+            "body_mass_change",
+            "grip_strength_change",
+            "intraocular_pressure",
+            "retinal_thickness_change",
+            "oct_fundus_scan",
+            "stand_test_systolic_drop",
+            "resting_heart_rate",
+            "ejection_fraction",
+            "sleep_duration",
+            "memory_score_change",
+            "balance_score_change",
+            "mood_score",
+            "solar_proton_flux"
+          ],
+          "distinctDays": false,
+          "streak": false,
+          "isOk": false,
+          "count": 1
+        }
+      ]
+    },
+    {
+      "title": "Week Streak",
+      "criteria": [
+        {
+          "measurementType": [
+            "white_blood_cells",
+            "lymphocytes",
+            "body_mass_change",
+            "grip_strength_change",
+            "intraocular_pressure",
+            "retinal_thickness_change",
+            "oct_fundus_scan",
+            "stand_test_systolic_drop",
+            "resting_heart_rate",
+            "ejection_fraction",
+            "sleep_duration",
+            "memory_score_change",
+            "balance_score_change",
+            "mood_score",
+            "solar_proton_flux"
+          ],
+          "distinctDays": true,
+          "streak": true,
+          "isOk": false,
+          "count": 7
+        }
+      ]
+    },
+    {
+      "title": "Eagle Eye",
+      "criteria": [
+        {
+          "measurementType": [
+            "intraocular_pressure"
+          ],
+          "distinctDays": false,
+          "streak": false,
+          "isOk": false,
+          "count": 1
+        },
+        {
+          "measurementType": [
+            "oct_fundus_scan"
+          ],
+          "distinctDays": false,
+          "streak": false,
+          "isOk": false,
+          "count": 1
+        }
+      ]
+    },
+    {
+      "title": "Deep Sleeper",
+      "criteria": [
+        {
+          "measurementType": [
+            "sleep_duration"
+          ],
+          "distinctDays": false,
+          "streak": false,
+          "isOk": true,
+          "count": 2
+        }
+      ]
+    },
+    {
+      "title": "Steady Horizon",
+      "criteria": [
+        {
+          "measurementType": [
+            "balance_score_change"
+          ],
+          "distinctDays": false,
+          "streak": false,
+          "isOk": true,
+          "count": 3
+        }
+      ]
+    },
+    {
+      "title": "Strong Grip",
+      "criteria": [
+        {
+          "measurementType": [
+            "grip_strength_change"
+          ],
+          "distinctDays": false,
+          "streak": false,
+          "isOk": true,
+          "count": 3
+        }
+      ]
+    },
+    {
+      "title": "Mind Zen",
+      "criteria": [
+        {
+          "measurementType": [
+            "mood_score"
+          ],
+          "distinctDays": true,
+          "streak": true,
+          "isOk": false,
+          "count": 7
+        }
+      ]
+    },
+    {
+      "title": "Storm Watch",
+      "criteria": [
+        {
+          "measurementType": [
+            "solar_proton_flux"
+          ],
+          "distinctDays": false,
+          "streak": false,
+          "isOk": false,
+          "count": 5
+        }
+      ]
+    }
+  ]
+}

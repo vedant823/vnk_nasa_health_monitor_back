@@ -1,6 +1,7 @@
 package org.vnk.healthmonitor.controller;
 
 import org.vnk.healthmonitor.domain.dto.LogMeasurementRequest;
+import org.vnk.healthmonitor.domain.dto.BadgeSet;
 import org.vnk.healthmonitor.domain.dto.MeasurementTrend;
 import org.vnk.healthmonitor.domain.dto.Reminder;
 import org.vnk.healthmonitor.domain.dto.ReminderDigest;
@@ -9,6 +10,7 @@ import org.vnk.healthmonitor.domain.dto.UpdateFrequencyRequest;
 import org.vnk.healthmonitor.domain.document.MeasurementSet;
 import org.vnk.healthmonitor.domain.document.UserDocument;
 import org.vnk.healthmonitor.service.DataRetrievalService;
+import org.vnk.healthmonitor.service.BadgeService;
 import org.vnk.healthmonitor.service.JudgementService;
 import org.vnk.healthmonitor.service.NotificationScheduler;
 import org.vnk.healthmonitor.service.UserDataService;
@@ -39,19 +41,22 @@ public class UserController {
     private final JudgementService judgementService;
     private final DataRetrievalService dataRetrievalService;
     private final NotificationScheduler notificationScheduler;
+    private final BadgeService badgeService;
 
     public UserController(UserDataService userDataService,
                           UserLoginService userLoginService,
                           UserReminderService userReminderService,
                           JudgementService judgementService,
                           DataRetrievalService dataRetrievalService,
-                          NotificationScheduler notificationScheduler) {
+                          NotificationScheduler notificationScheduler,
+                          BadgeService badgeService) {
         this.userDataService = userDataService;
         this.userLoginService = userLoginService;
         this.userReminderService = userReminderService;
         this.judgementService = judgementService;
         this.dataRetrievalService = dataRetrievalService;
         this.notificationScheduler = notificationScheduler;
+        this.badgeService = badgeService;
     }
 
     /**
@@ -133,6 +138,16 @@ public class UserController {
             @PathVariable("riskID") String riskId) {
         UserDocument user = userLoginService.resolveUser(authorization);
         return judgementService.evaluate(user, dataRetrievalService.getRisk(riskId));
+    }
+
+    /**
+     * Lists the user's earned badges and, for the unearned ones, the
+     * badge plus per-criterion progress toward it.
+     */
+    @GetMapping("/users/badges")
+    public BadgeSet getBadges(@RequestHeader("Authorization") String authorization) {
+        UserDocument user = userLoginService.resolveUser(authorization);
+        return badgeService.evaluate(user);
     }
 
     /**

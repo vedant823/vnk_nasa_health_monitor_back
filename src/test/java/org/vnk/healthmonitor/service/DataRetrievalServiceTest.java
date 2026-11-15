@@ -118,4 +118,37 @@ class DataRetrievalServiceTest {
         assertTrue(e.getMessage().contains("unknown measurement unknown_measurement"),
                 "Unexpected message: " + e.getMessage());
     }
+
+    @Test
+    void loadsBadgesInFileOrder() {
+        DataRetrievalService service = serviceFor("data");
+
+        var badges = service.getBadges();
+
+        assertEquals(7, badges.size());
+        assertEquals("One Reading", badges.get(0).title());
+        assertEquals(1, badges.get(0).criteria().size());
+        var streakCriterion = badges.get(2).criteria().get(0);
+        assertTrue(streakCriterion.streak());
+        assertTrue(streakCriterion.distinctDays());
+        assertEquals(3, streakCriterion.count());
+    }
+
+    @Test
+    void badgeReferencingUnknownMeasurementFailsFast() {
+        IllegalStateException e = assertThrows(IllegalStateException.class,
+                () -> serviceFor("data-bad-badges"));
+
+        assertTrue(e.getMessage().contains("unknown measurement unknown_measurement"),
+                "Unexpected message: " + e.getMessage());
+    }
+
+    @Test
+    void badgeWithInvalidCountFailsFast() {
+        IllegalStateException e = assertThrows(IllegalStateException.class,
+                () -> serviceFor("data-bad-count"));
+
+        assertTrue(e.getMessage().contains("count < 1"),
+                "Unexpected message: " + e.getMessage());
+    }
 }

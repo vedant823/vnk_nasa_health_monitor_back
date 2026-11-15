@@ -66,6 +66,9 @@
       * Lists every measurement due within the given window, ordered by due date. A measurement is due when `lastTaken + frequencyDays` has passed, or immediately if never taken — so a fresh account's list is the complete baseline checklist.
       * Query: `withinDays` (integer, optional, default 30)
       * Outputs `List<Reminder>` — each `{measurementId, dueDate}`, dueDate ascending
+    * `GET /users/badges`
+      * Lists all of the badges the user has and hasn't earned.
+      * Outputs `BadgeSets`
     * `GET /users/risks`
       * Scores every risk factor for the user with the rule-based `JudgementService` (start at 100; −40 per abnormal and −75 per dangerous latest reading, stacked, floored at 1). Risks without measurements yet always score 100.
       * Outputs `List<RiskEvaluation>` — each `{riskId, score, advice[], reason}`
@@ -105,6 +108,8 @@
     * Gets the risk data and measurement instructions using Jackson and records
   * **JudgementService**
     * Rule-based judging against guideline ranges (no statistics, no AI). Each numerical measurement’s latest value is classified against the ranges in `measurementDetails.json`: below `abnormalLow` (or above `abnormalHigh`) is abnormal, and beyond `dangerousLow`/`dangerousHigh` is dangerous. Scoring starts at 100; each abnormal measurement subtracts 40 and each dangerous one subtracts 75, stacking and floored at 1. The recommendation string matching the violated side of every abnormal measurement is collected into the advice (a list), ordered most severe first. Visual measurements are stored but excluded from scoring for the time being.
+  * **BadgeService**
+    * Checks if a badge has been earned and delivers a `BadgeDetails` object based off of the user's history.
 * **Repositories / Databases**
   * **UserData**
     * Stores user logins, passwords, measurement times and frequencies, and measurement data.
@@ -121,12 +126,20 @@
       * Uses a string ID as well as a category and contains instructions alongside two optional recommendation strings
     * `Instruction`
       * Contains an image reference and text.
+    * `Badge`
+      * Contains a badge's title and criteria that must be fulfilled to earn it.
+    * `Criterion`
+      * Contains a criterion's set of valid measurements and some booleans dictating its behavior as well as an integer specifying its length.
   * **Non-static classes:**
     * `User` + `User (document)`
       * Contains a user’s username, hashed password, and current token (?)
       * Document class contains a map of measurement IDs to MeasurementSet objects
     * `MeasurementSet`
       * Contains a list / array of numbers or images along with the user ID it is associated with and the Measurement ID it corresponds to
+    * `BadgeSet`
+      * Contains two lists of badges: a list of Badges for those that have been completed and a list of BadgeStatus for those that have not.
+    * `BadgeStatus`
+      * Contains a badge and a list of doubles representing the % of measurements complete in each criterion.
     * `RiskEvaluation`
       * Contains a string ID correlating it to a risk factor as well as an integer score, a list of strings suggesting how to improve the score (one per abnormal measurement, most severe first), and an optional string describing the reason for the score
     * `Reminder`
@@ -141,6 +154,8 @@
       * Will also be adjusted after the code is complete
     * `measurementDetails.json`
       * Contains each measurement’s display name, type (numerical, visual), unit, and for numerical values: upper and lower bounds around abnormal and dangerous levels (4 doubles, each optional — a missing side does not apply), a boolean indicating whether it can be negative, and 2 optional recommendation strings for an unusually low and high number.
+    * `badges.json`
+      * Contains each badge and its nested criteria: Each badge has a title and list of criteria, each criterion has a set of valid measurements, some booleans dictating its behavior, and an integer dictating its length.
 
 ---
 
@@ -158,7 +173,7 @@
 * **API client artifacts:** `docs/openapi.yaml` (OpenAPI 3.1, every endpoint and schema, mirrors the descriptive REST section above; importable into Hoppscotch, Postman, and Insomnia).
 * **Testing:** Two-layer suite. Unit tests (plain JUnit + Mockito; services with mocked dependencies and a fixed `Clock`, controllers via standalone MockMvc with mocked services) run with `./gradlew test` and need no external services. Functional tests (tagged `functional`, `@SpringBootTest(RANDOM_PORT)` driving the fully booted app over real HTTP against the Dockerized MongoDB in the dedicated `healthmonitor-functional` database) run with `./gradlew functionalTest` after `docker-compose up -d`; they cover the complete user journey, auth and error paths (missing header → 400, invalid token → 401, unknown IDs → 404, duplicate username → 409, validation errors → 400), the data endpoints, CORS preflight/actual requests for the Hoppscotch origin, and the notification digests. The functional database is dropped before each test class and again when the test JVM exits, so runs leave no permanent data behind. (Note: the database URIs must use `spring.mongodb.uri` — Spring Boot 4 deprecated `spring.data.mongodb.uri` at error level, and the old key was silently ignored, sending everything to Mongo's default `test` database.)
 * **Package layout:** `controller/`, `service/`, `repository/`, `domain/{dto,document}/`, `config/` (CORS + error handling + Clock + scheduling).
-* **Status:** All spec classes exist; controllers are wired to services; service logic is implemented as described above. Controllers remain pure delegation. The daily/weekly/monthly reminder notifications (the spec's headline requirement) are implemented and tested; the test suite (90 unit + 29 functional tests) is green.
+* **Status:** All spec classes exist; controllers are wired to services; service logic is implemented as described above. Controllers remain pure delegation. The daily/weekly/monthly reminder notifications (the spec's headline requirement) are implemented and tested; the badge system (`GET /users/badges`, `BadgeService`, `badges.json`) is implemented and tested. The test suite is green.
 
 ---
 
@@ -174,7 +189,7 @@
 7. **Notification delivery** — replace `LoggingNotificationSender` with a real push/email channel behind the same `NotificationSender` interface. (The `@Scheduled` trigger itself is now covered by a functional test that boots the app with a one-second cron and a counting sender.)
 8. **API documentation & ops** — OpenAPI/Swagger UI, Actuator health endpoints, and a production deployment story (containerized app + MongoDB Atlas or a managed Mongo).
 
-*(Delivered since the original list: the two-layer test suite — unit tests for `UserReminderService`, `JudgementService`, `UserLoginService`, `DataRetrievalService`, `UserDataService`, `NotificationScheduler`, and controller tests, plus functional tests over real HTTP against the Dockerized Mongo — and the scheduled daily/weekly/monthly notifications via `NotificationSender`/`NotificationScheduler`. Also delivered since: user baselines with server-side raw-to-change conversion, the per-measurement trend endpoint, and `GET /users/digest`, which serves the exact buckets the scheduled sender delivers over HTTP.)*
+*(Delivered since the original list: the two-layer test suite — unit tests for `UserReminderService`, `JudgementService`, `UserLoginService`, `DataRetrievalService`, `UserDataService`, `NotificationScheduler`, and controller tests, plus functional tests over real HTTP against the Dockerized Mongo — and the scheduled daily/weekly/monthly notifications via `NotificationSender`/`NotificationScheduler`. Also delivered since: user baselines with server-side raw-to-change conversion, the per-measurement trend endpoint, `GET /users/digest`, which serves the exact buckets the scheduled sender delivers over HTTP, the measurement-deletion endpoint with baseline protection, and the badge system — `GET /users/badges` evaluated live from history by `BadgeService`, with `badges.json`-defined criteria supporting distinct days, consecutive-day streaks, and green-status readings, served with per-criterion progress fractions.)*
 
 ### Frontend (React)
 1. **Screens** — login, home (risk grid + measurement list), reminders (day/week/month), risk detail, measurement overview (graph + frequency dropdown), and measurement performance (instructions + input) screens, all parameterized by backend IDs.

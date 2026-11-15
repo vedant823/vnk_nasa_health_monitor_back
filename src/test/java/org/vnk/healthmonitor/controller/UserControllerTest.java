@@ -9,6 +9,7 @@ import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.vnk.healthmonitor.domain.document.MeasurementSet;
 import org.vnk.healthmonitor.domain.document.UserDocument;
 import org.vnk.healthmonitor.service.DataRetrievalService;
+import org.vnk.healthmonitor.service.BadgeService;
 import org.vnk.healthmonitor.service.JudgementService;
 import org.vnk.healthmonitor.service.NotificationScheduler;
 import org.vnk.healthmonitor.service.UserDataService;
@@ -48,6 +49,7 @@ class UserControllerTest {
     private JudgementService judgementService;
     private DataRetrievalService dataRetrievalService;
     private NotificationScheduler notificationScheduler;
+    private BadgeService badgeService;
     private UserDocument user;
     private MockMvc mockMvc;
 
@@ -59,11 +61,13 @@ class UserControllerTest {
         judgementService = mock(JudgementService.class);
         dataRetrievalService = mock(DataRetrievalService.class);
         notificationScheduler = mock(NotificationScheduler.class);
+        badgeService = mock(BadgeService.class);
         user = new UserDocument("alice", "hash", "token-123");
         when(userLoginService.resolveUser(BEARER)).thenReturn(user);
         mockMvc = MockMvcBuilders.standaloneSetup(new UserController(
                 userDataService, userLoginService, userReminderService,
-                judgementService, dataRetrievalService, notificationScheduler)).build();
+                judgementService, dataRetrievalService, notificationScheduler,
+                badgeService)).build();
     }
 
     @Test
@@ -213,5 +217,26 @@ class UserControllerTest {
                 .andExpect(jsonPath("$.monthly", hasSize(0)));
 
         verify(notificationScheduler).buildDigest(user);
+    }
+
+    @Test
+    void getBadgesDelegatesToTheBadgeService() throws Exception {
+        org.vnk.healthmonitor.domain.dto.Badge badge =
+                new org.vnk.healthmonitor.domain.dto.Badge("First Check-in", List.of());
+        when(badgeService.evaluate(user)).thenReturn(new org.vnk.healthmonitor.domain.dto.BadgeSet(
+                List.of(badge),
+                List.of(new org.vnk.healthmonitor.domain.dto.BadgeStatus(
+                        new org.vnk.healthmonitor.domain.dto.Badge("Week Streak", List.of()),
+                        List.of(0.0)))));
+
+        mockMvc.perform(get("/users/badges").header(AUTH, BEARER))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.earned", hasSize(1)))
+                .andExpect(jsonPath("$.earned[0].title").value("First Check-in"))
+                .andExpect(jsonPath("$.unearned", hasSize(1)))
+                .andExpect(jsonPath("$.unearned[0].badge.title").value("Week Streak"))
+                .andExpect(jsonPath("$.unearned[0].progress[0]").value(0.0));
+
+        verify(badgeService).evaluate(user);
     }
 }

@@ -312,6 +312,30 @@ paths:
                 $ref: "#/components/schemas/ReminderDigest"
         "401":
           $ref: "#/components/responses/Unauthorized"
+  /users/badges:
+    get:
+      tags: [User data]
+      operationId: getBadges
+      summary: Get the user's badges
+      description:
+        Lists every badge, split into the definitions of the earned ones and,
+        for the unearned ones, the badge plus a per-criterion progress fraction
+        (0.0-1.0) of the required readings (or days) completed. A badge is
+        earned when every one of its criteria is satisfied. Criteria can
+        require distinct days, consecutive-day streaks, and readings within
+        the measurement's normal range (baseline-adjusted); visual
+        measurements never satisfy isOk criteria. Evaluated live from the
+        user's history.
+      security: [{ bearerAuth: [] }]
+      responses:
+        "200":
+          description: The user's badges
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BadgeSet"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
   /data/risks:
     get:
       tags: [Static data]
@@ -581,6 +605,66 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/Reminder"
+    Criterion:
+      type: object
+      description: >
+        One badge condition: readings of any listed measurement ID qualify;
+        distinctDays counts each day once, streak requires consecutive days
+        (which implies distinct days), isOk requires each reading to be within
+        the measurement's normal range (baseline-adjusted), and count is how
+        many qualifying readings or days are needed.
+      properties:
+        measurementType:
+          type: array
+          items:
+            type: string
+        distinctDays:
+          type: boolean
+        streak:
+          type: boolean
+        isOk:
+          type: boolean
+        count:
+          type: integer
+          minimum: 1
+    Badge:
+      type: object
+      description: A badge definition from badges.json; earned when every criterion is satisfied.
+      properties:
+        title:
+          type: string
+        criteria:
+          type: array
+          items:
+            $ref: "#/components/schemas/Criterion"
+    BadgeStatus:
+      type: object
+      description: >
+        An unearned badge with its progress: one fraction (0.0-1.0) per
+        criterion, in criterion order. For streak criteria this is the best
+        run of consecutive qualifying days over the required length.
+      properties:
+        badge:
+          $ref: "#/components/schemas/Badge"
+        progress:
+          type: array
+          items:
+            type: number
+            format: double
+            minimum: 0
+            maximum: 1
+    BadgeSet:
+      type: object
+      description: The user's badges, split into earned definitions and unearned progress.
+      properties:
+        earned:
+          type: array
+          items:
+            $ref: "#/components/schemas/Badge"
+        unearned:
+          type: array
+          items:
+            $ref: "#/components/schemas/BadgeStatus"
     MeasurementTrend:
       type: object
       properties:

@@ -103,6 +103,19 @@ Use the IDs from these responses in the URLs below — nothing needs to be hardc
   it returns 400 while other readings exist, and deleting it as the only reading
   also clears the baseline so a re-log starts a fresh one.
 * `GET /users/upcoming?withinDays=30` — reminders due in the next N days, ordered by due date
+* `GET /users/badges` — every badge, split into earned definitions and unearned
+  ones with progress. Each unearned badge carries one progress fraction
+  (0.0–1.0) per criterion — e.g. `{"badge": {"title": "Week Streak", ...},
+  "progress": [0.29]}` means 2 of the 7 consecutive days are done:
+
+  ```json
+  {"earned": [{"title": "First Check-in", "criteria": [...]}],
+   "unearned": [{"badge": {...}, "progress": [0.0, 0.5]}]}
+  ```
+
+  Badges are evaluated live from the measurement history: `distinctDays`
+  counts each day once, `streak` requires consecutive days, and `isOk`
+  requires each reading to be green (within the normal range, baseline-adjusted).
 * `GET /users/risks` — every risk score for the user
 * `GET /users/risks/immune_dysregulation` — one risk's score, advice, and reason
 * `GET /users/digest` — the daily/weekly/monthly reminder digest, the exact same

@@ -1,0 +1,16 @@
+{
+  "badges": [
+    {
+      "title": "Broken Badge",
+      "criteria": [
+        {
+          "measurementType": ["unknown_measurement"],
+          "distinctDays": false,
+          "streak": false,
+          "isOk": false,
+          "count": 1
+        }
+      ]
+    }
+  ]
+}
