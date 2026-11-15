@@ -3,8 +3,8 @@ package org.vnk.healthmonitor.controller;
 import org.vnk.healthmonitor.domain.dto.LoginRequest;
 import org.vnk.healthmonitor.service.UserLoginService;
 import org.springframework.validation.annotation.Validated;
-import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -30,9 +30,11 @@ public class LoginController {
     }
 
     /**
-     * Gets the token for an account.
+     * Verifies credentials and returns the account's token. PUT (not GET)
+     * because login carries a credentials body and GET bodies cannot be
+     * sent by browsers; PUT is the fitting idempotent method.
      */
-    @GetMapping("/users/login")
+    @PutMapping("/users/login")
     public String login(@RequestBody @Validated LoginRequest request) {
         return userLoginService.login(request);
     }

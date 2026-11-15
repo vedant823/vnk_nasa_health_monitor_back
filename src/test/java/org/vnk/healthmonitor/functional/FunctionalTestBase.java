@@ -125,8 +125,8 @@ public abstract class FunctionalTestBase {
 
     /**
      * Sends an HTTP request to the running app. Supports bodies on any
-     * method (including GET, which Hoppscotch desktop also sends for
-     * GET /users/login).
+     * method (including PUT, which the login endpoint uses because
+     * browsers cannot send GET bodies).
      */
     HttpResponse<String> send(String method, String path, String jsonBody,
                               Map<String, String> headers) throws Exception {

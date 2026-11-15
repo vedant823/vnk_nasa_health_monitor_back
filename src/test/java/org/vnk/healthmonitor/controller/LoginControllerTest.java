@@ -12,8 +12,8 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 import static org.springframework.http.HttpStatus.CONFLICT;
 import static org.springframework.http.HttpStatus.UNAUTHORIZED;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -61,8 +61,9 @@ class LoginControllerTest {
         when(userLoginService.login(new org.vnk.healthmonitor.domain.dto.LoginRequest("alice", "secret")))
                 .thenReturn("token-123");
 
-        // GET with a credentials body, as specified (usable from Hoppscotch desktop).
-        mockMvc.perform(get("/users/login")
+        // PUT with a credentials body: GET bodies cannot be sent by
+        // browsers, and login is idempotent, so PUT is the fitting method.
+        mockMvc.perform(put("/users/login")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"username\":\"alice\",\"password\":\"secret\"}"))
                 .andExpect(status().isOk())
@@ -74,7 +75,7 @@ class LoginControllerTest {
         when(userLoginService.login(new org.vnk.healthmonitor.domain.dto.LoginRequest("alice", "wrong")))
                 .thenThrow(new ResponseStatusException(UNAUTHORIZED, "Invalid username or password"));
 
-        mockMvc.perform(get("/users/login")
+        mockMvc.perform(put("/users/login")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"username\":\"alice\",\"password\":\"wrong\"}"))
                 .andExpect(status().isUnauthorized());

@@ -1,8 +1,8 @@
 # Testing the API from Hoppscotch
 
-The API is fully exercisable from the [Hoppscotch desktop app](https://hoppscotch.io/download).
-The web app works for everything except `GET /users/login` (browsers cannot send a body with GET
-requests; the desktop app can).
+The API is fully exercisable from the [Hoppscotch web app](https://hoppscotch.io) —
+no desktop app needed. (`/users/login` used to be a GET-with-body, which browsers
+cannot send; it is now `PUT /users/login`.)
 
 ## 1. Point Hoppscotch at the API
 
@@ -41,17 +41,18 @@ Authorization: Bearer <token>
 
 (In Hoppscotch: open the *Auth* tab, choose *Bearer*, paste the token.)
 
-## 4. Log in again (GET with credentials in the body)
+## 4. Log in again (PUT with credentials in the body)
 
 ```
-GET http://localhost:8080/users/login
+PUT http://localhost:8080/users/login
 Content-Type: application/json
 
 {"username": "astronaut1", "password": "secret"}
 ```
 
-Returns the same token. This must be sent from the Hoppscotch desktop app (or curl), not the
-web app, because it is a GET with a body.
+Returns the same token. PUT (not GET) because the request carries a credentials body,
+which browsers cannot send with GET — and login is idempotent, which is PUT's defining
+property. Works from the Hoppscotch web app, the desktop app, curl, or the browser.
 
 ## 5. Explore the static data (no auth needed)
 

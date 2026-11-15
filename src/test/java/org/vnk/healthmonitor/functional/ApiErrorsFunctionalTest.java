@@ -28,7 +28,7 @@ class ApiErrorsFunctionalTest extends FunctionalTestBase {
 
     @Test
     void loginWithUnknownUserReturns401() throws Exception {
-        HttpResponse<String> login = send("GET", "/users/login",
+        HttpResponse<String> login = send("PUT", "/users/login",
                 "{\"username\":\"ghost-" + uniqueUsername() + "\",\"password\":\"secret\"}");
 
         assertEquals(401, login.statusCode());
@@ -39,7 +39,7 @@ class ApiErrorsFunctionalTest extends FunctionalTestBase {
         String username = uniqueUsername();
         createAccount(username);
 
-        HttpResponse<String> login = send("GET", "/users/login",
+        HttpResponse<String> login = send("PUT", "/users/login",
                 "{\"username\":\"" + username + "\",\"password\":\"wrong\"}");
 
         assertEquals(401, login.statusCode());

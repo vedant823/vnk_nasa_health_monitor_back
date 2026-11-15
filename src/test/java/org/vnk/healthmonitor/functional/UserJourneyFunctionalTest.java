@@ -22,7 +22,7 @@ class UserJourneyFunctionalTest extends FunctionalTestBase {
         String token = createAccount(username);
 
         // 2. Log in with the same credentials and get the same token.
-        HttpResponse<String> login = send("GET", "/users/login",
+        HttpResponse<String> login = send("PUT", "/users/login",
                 "{\"username\":\"" + username + "\",\"password\":\"secret\"}");
         assertEquals(200, login.statusCode());
         assertEquals(token, parseToken(login.body()));

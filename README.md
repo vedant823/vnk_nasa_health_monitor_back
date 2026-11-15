@@ -48,13 +48,14 @@ Hoppscotch — a request-by-request walkthrough is in [`docs/api-testing.md`](do
 
 ## API overview
 
-Auth: `POST`/`GET /users/login` (credentials in the body) return a token; send it as
+Auth: `POST` (create account) and `PUT` (log in) on `/users/login` take credentials in the
+body and return a token; send it as
 `Authorization: Bearer <token>` on every `/users/**` request. `/data/**` is public.
 
 | Method & path | Purpose |
 | --- | --- |
 | `POST /users/login` | Create an account, returns the token (409 if taken) |
-| `GET /users/login` | Log in, returns the account's token |
+| `PUT /users/login` | Log in, returns the account's token (idempotent; browser-friendly) |
 | `GET /users/measurements/{id}` | Measurement history, newest first (baseline-adjusted values) |
 | `POST /users/measurements/{id}` | Log a reading — `{"values":[...]}` or `{"image":"<base64>"}` |
 | `PUT /users/measurements/{id}/frequency` | Days between reminders (`{"frequencyDays":3}`) |
