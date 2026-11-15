@@ -10,6 +10,7 @@ import org.vnk.healthmonitor.domain.dto.Measurement;
 import org.vnk.healthmonitor.domain.dto.MeasurementCategory;
 import org.vnk.healthmonitor.domain.dto.MeasurementTrend;
 import org.vnk.healthmonitor.domain.dto.TrendDirection;
+import org.vnk.healthmonitor.domain.dto.UserStatus;
 import org.vnk.healthmonitor.domain.document.MeasurementSet;
 import org.vnk.healthmonitor.domain.document.UserDocument;
 import org.vnk.healthmonitor.repository.UserData;
@@ -163,6 +164,72 @@ public class UserDataService {
     }
 
     /**
+     * Sets the user's status ("normal" or "medical officer"). The status
+     * cannot change while the user is in a relationship: a user with an
+     * officer or children keeps it until the relationship is removed.
+     */
+    public void setStatus(UserDocument user, String newStatus) {
+        UserStatus status;
+        try {
+            status = UserStatus.from(newStatus);
+        } catch (IllegalArgumentException e) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "Unknown status: " + newStatus);
+        }
+        if (user.officerIdOf() != null
+                || !userData.findByOfficerId(user.getId()).isEmpty()) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT,
+                    "The status cannot change while the user has an officer or children");
+        }
+        user.setStatus(status);
+        userData.save(user);
+    }
+
+    /**
+     * The username of the officer supervising this user, or null when
+     * standalone.
+     */
+    public String officerOf(UserDocument user) {
+        String officerId = user.officerIdOf();
+        if (officerId == null) {
+            return null;
+        }
+        return userData.findById(officerId)
+                .map(UserDocument::getUsername)
+                .orElse(null);
+    }
+
+    /**
+     * Sets (or changes, at will) the officer supervising this user. The
+     * named user must exist, must be a medical officer, and must not
+     * already have an officer of their own — the hierarchy is one level
+     * deep. A medical officer cannot take an officer.
+     */
+    public void setOfficer(UserDocument user, String officerUsername) {
+        if (officerUsername == null || officerUsername.isBlank()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "An officer username is required");
+        }
+        UserDocument officer = userData.findByUsername(officerUsername.trim())
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND,
+                        "Unknown officer: " + officerUsername));
+        if (officer.getId().equals(user.getId())) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT,
+                    "A user cannot be their own officer");
+        }
+        if (user.statusOf() == UserStatus.MEDICAL_OFFICER || officer.officerIdOf() != null) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT,
+                    "Officers cannot have an officer");
+        }
+        if (officer.statusOf() != UserStatus.MEDICAL_OFFICER) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT,
+                    "Only medical officers can take children: " + officerUsername + " is a normal user");
+        }
+        user.setOfficerId(officer.getId());
+        userData.save(user);
+    }
+
+    /**
      * Deletes one logged reading: the most recent one by default, or the
      * one at {@code measurementIndex} in the newest-first order the GET
      * endpoint serves (0 = most recent). The baseline reading of a
@@ -213,13 +280,19 @@ public class UserDataService {
 
     /**
      * Sets how many abnormalities the Crew Medical Officer observed in
-     * one logged visual reading: the most recent one by default, or the
-     * one at {@code measurementIndex} in the newest-first order the GET
-     * endpoint serves (0 = most recent). Only visual measurements can be
-     * scored, and the count cannot be negative.
+     * one logged visual reading of {@code owner}: the most recent one by
+     * default, or the one at {@code measurementIndex} in the newest-first
+     * order the GET endpoint serves (0 = most recent). Judging images is
+     * reserved for users without an officer — a medical officer, or a
+     * standalone user acting as their own CMO — so a child cannot score
+     * their own readings (403).
      */
-    public void setScore(UserDocument user, String measurementId,
+    public void setScore(UserDocument scorer, UserDocument owner, String measurementId,
                          Integer measurementIndex, int numAbnormal) {
+        if (scorer.officerIdOf() != null) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN,
+                    "Only users without an officer can judge images; ask your officer");
+        }
         Measurement measurement = requireMeasurement(measurementId);
         if (measurement.category() != MeasurementCategory.VISUAL) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
@@ -229,7 +302,7 @@ public class UserDataService {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
                     "numAbnormal cannot be negative");
         }
-        List<MeasurementSet> stored = user.getMeasurementHistory().get(measurementId);
+        List<MeasurementSet> stored = owner.getMeasurementHistory().get(measurementId);
         if (stored == null || stored.isEmpty()) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND,
                     "No readings logged for " + measurementId);
@@ -243,7 +316,7 @@ public class UserDataService {
                     "Invalid measurement index: " + measurementIndex);
         }
         sorted.get(position).setNumAbnormal(numAbnormal);
-        userData.save(user);
+        userData.save(owner);
     }
 
     private boolean isBaselineRelative(Measurement measurement) {

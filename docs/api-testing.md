@@ -148,7 +148,45 @@ Use the IDs from these responses in the URLs below — nothing needs to be hardc
   {"username": "astronaut1", "daily": [...], "weekly": [...], "monthly": [...]}
   ```
 
-## 7. Expected status codes
+## 7. Officers and children (Bearer token required)
+
+A crew member can put themselves under a medical officer, who then gets a
+read + score view of their data. The one-level hierarchy works like this:
+
+1. The future officer promotes themselves — **standalone only**:
+
+   `PUT /users/status?newStatus=medical%20officer`
+
+   Check with `GET /users/status` (returns `normal` or `medical officer`).
+   The status cannot change while the user has an officer or children (409).
+2. The child assigns the officer — **at will, at any time**:
+
+   `PUT /users/officer?newOfficer=<officer username>`
+
+   `GET /users/officer` returns the officer's username (or null). Errors:
+   404 unknown user; 409 if the target is not a medical officer, is the
+   caller, or already has an officer, or if the caller is a medical officer
+   (officers cannot take an officer).
+3. The officer works through the child-scoped paths (their token, the
+   child's ID from `GET /users/children`):
+
+   * `GET /users/children` — the children, each with their latest
+     measurement timestamp
+   * `GET /users/children/{childID}/risks` (and `.../risks/{riskID}`) — the
+     child's risk scores, computed exactly as the child's own would be
+   * `GET /users/children/{childID}/measurements/{measurementID}` — the
+     child's history, newest first (the officer's scan-review view)
+   * `PUT /users/children/{childID}/measurements/{measurementID}/score?numAbnormal=N`
+     — the CMO review of the child's visual reading
+   * `GET /users/children/{childID}/upcoming?withinDays=N` — who is behind
+   * `GET /users/overdue` — overdue measurements across **all** children,
+     each tagged with its `childId`; medical officers only (403 otherwise)
+
+A child cannot judge their own images (403 on the user-scoped score
+endpoint) — their officer scores them. A child assigned to someone else
+gets 403 on every child-scoped path.
+
+## 8. Expected status codes
 
 | Situation                          | Code |
 | ---------------------------------- | ---- |
@@ -164,3 +202,6 @@ Use the IDs from these responses in the URLs below — nothing needs to be hardc
 | Duplicate username on creation     | 409  |
 | Validation error (e.g. `frequencyDays: 0`) | 400 |
 | Undecodable or over-limit measurement image | 400 |
+| Child-scoped access to a child of another officer | 403 |
+| Judging images while having an officer | 403 |
+| Status change with an officer or children / officer-assignment conflicts | 409 |

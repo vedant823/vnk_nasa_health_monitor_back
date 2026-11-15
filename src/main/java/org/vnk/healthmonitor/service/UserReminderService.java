@@ -52,4 +52,28 @@ public class UserReminderService {
         reminders.sort(Comparator.comparing(Reminder::dueDate));
         return reminders;
     }
+
+    /**
+     * Returns the measurements that are due right now or earlier —
+     * last-taken plus frequency has passed, or the measurement was never
+     * taken (due immediately, so a fresh account is fully "overdue").
+     * The same due-date math as getUpcoming, with the horizon at now.
+     */
+    public List<Reminder> getOverdue(UserDocument user) {
+        Instant now = clock.instant();
+        List<Reminder> overdue = new ArrayList<>();
+        for (String measurementId : dataRetrievalService.getMeasurementIds()) {
+            Integer frequency = user.frequencyOf(measurementId);
+            int days = frequency != null ? frequency : defaultFrequencyDays;
+            Instant lastTaken = user.lastTakenOf(measurementId);
+            Instant dueDate = lastTaken != null
+                    ? lastTaken.plus(Duration.ofDays(days))
+                    : now;
+            if (!dueDate.isAfter(now)) {
+                overdue.add(new Reminder(measurementId, dueDate));
+            }
+        }
+        overdue.sort(Comparator.comparing(Reminder::dueDate));
+        return overdue;
+    }
 }

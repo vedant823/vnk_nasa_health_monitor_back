@@ -125,7 +125,7 @@ class UserControllerTest {
                         .param("numAbnormal", "2"))
                 .andExpect(status().isOk());
 
-        verify(userDataService).setScore(user, "m1", null, 2);
+        verify(userDataService).setScore(user, user, "m1", null, 2);
     }
 
     @Test
@@ -136,7 +136,7 @@ class UserControllerTest {
                         .param("measurementIndex", "1"))
                 .andExpect(status().isOk());
 
-        verify(userDataService).setScore(user, "m1", 1, 0);
+        verify(userDataService).setScore(user, user, "m1", 1, 0);
     }
 
     @Test
@@ -221,6 +221,45 @@ class UserControllerTest {
                 .andExpect(jsonPath("$.direction").value("down"));
 
         verify(userDataService).getTrend(user, "m1");
+    }
+
+    @Test
+    void setOfficerDelegatesWithParameter() throws Exception {
+        mockMvc.perform(put("/users/officer")
+                        .header(AUTH, BEARER)
+                        .param("newOfficer", "cmo"))
+                .andExpect(status().isOk());
+
+        verify(userDataService).setOfficer(user, "cmo");
+    }
+
+    @Test
+    void getOfficerReturnsTheUsername() throws Exception {
+        when(userDataService.officerOf(user)).thenReturn("cmo");
+
+        mockMvc.perform(get("/users/officer").header(AUTH, BEARER))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$").value("cmo"));
+
+        verify(userDataService).officerOf(user);
+    }
+
+    @Test
+    void setStatusDelegatesWithParameter() throws Exception {
+        mockMvc.perform(put("/users/status")
+                        .header(AUTH, BEARER)
+                        .param("newStatus", "medical officer"))
+                .andExpect(status().isOk());
+
+        verify(userDataService).setStatus(user, "medical officer");
+    }
+
+    @Test
+    void getStatusReturnsTheLabel() throws Exception {
+        mockMvc.perform(get("/users/status").header(AUTH, BEARER))
+                .andExpect(status().isOk());
+
+        verify(userLoginService).resolveUser(BEARER);
     }
 
     @Test

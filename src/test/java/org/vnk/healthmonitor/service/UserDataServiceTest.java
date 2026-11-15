@@ -20,6 +20,7 @@ import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.List;
+import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -383,7 +384,7 @@ class UserDataServiceTest {
         givenMeasurement(visualMeasurement("oct"));
         seedVisualHistory("oct", NOW.minusSeconds(86400), NOW);
 
-        userDataService.setScore(user, "oct", null, 2);
+        userDataService.setScore(user, user, "oct", null, 2);
 
         List<MeasurementSet> stored = user.getMeasurementHistory().get("oct");
         assertEquals(2, stored.get(1).getNumAbnormal());
@@ -392,11 +393,24 @@ class UserDataServiceTest {
     }
 
     @Test
+    void aUserWithAnOfficerCannotScoreImages() {
+        givenMeasurement(visualMeasurement("oct"));
+        seedVisualHistory("oct", NOW);
+        UserDocument child = new UserDocument("kid", "hash", "tok");
+        child.setOfficerId("officer-1");
+
+        ResponseStatusException e = assertThrows(ResponseStatusException.class,
+                () -> userDataService.setScore(child, child, "oct", null, 1));
+
+        assertEquals(HttpStatus.FORBIDDEN, e.getStatusCode());
+    }
+
+    @Test
     void setScoreByIndexTargetsThatReading() {
         givenMeasurement(visualMeasurement("oct"));
         seedVisualHistory("oct", NOW.minusSeconds(86400), NOW);
 
-        userDataService.setScore(user, "oct", 1, 1);
+        userDataService.setScore(user, user, "oct", 1, 1);
 
         List<MeasurementSet> stored = user.getMeasurementHistory().get("oct");
         // Index 1 in the newest-first order is the older reading.
@@ -409,7 +423,7 @@ class UserDataServiceTest {
         givenMeasurement(visualMeasurement("oct"));
         seedVisualHistory("oct", NOW);
 
-        userDataService.setScore(user, "oct", null, 0);
+        userDataService.setScore(user, user, "oct", null, 0);
 
         assertEquals(0, user.getMeasurementHistory().get("oct").get(0).getNumAbnormal());
         verify(userData).save(user);
@@ -421,7 +435,7 @@ class UserDataServiceTest {
         seedHistory("wbc", NOW);
 
         ResponseStatusException e = assertThrows(ResponseStatusException.class,
-                () -> userDataService.setScore(user, "wbc", null, 1));
+                () -> userDataService.setScore(user, user, "wbc", null, 1));
 
         assertEquals(HttpStatus.BAD_REQUEST, e.getStatusCode());
     }
@@ -432,7 +446,7 @@ class UserDataServiceTest {
         seedVisualHistory("oct", NOW);
 
         ResponseStatusException e = assertThrows(ResponseStatusException.class,
-                () -> userDataService.setScore(user, "oct", null, -1));
+                () -> userDataService.setScore(user, user, "oct", null, -1));
 
         assertEquals(HttpStatus.BAD_REQUEST, e.getStatusCode());
     }
@@ -442,14 +456,14 @@ class UserDataServiceTest {
         when(dataRetrievalService.getMeasurement("nope")).thenThrow(
                 new ResponseStatusException(HttpStatus.NOT_FOUND, "Unknown measurement: nope"));
 
-        assertThrows404(() -> userDataService.setScore(user, "nope", null, 1));
+        assertThrows404(() -> userDataService.setScore(user, user, "nope", null, 1));
     }
 
     @Test
     void setScoreWithoutReadingsReturns404() {
         givenMeasurement(visualMeasurement("oct"));
 
-        assertThrows404(() -> userDataService.setScore(user, "oct", null, 1));
+        assertThrows404(() -> userDataService.setScore(user, user, "oct", null, 1));
     }
 
     @Test
@@ -457,8 +471,148 @@ class UserDataServiceTest {
         givenMeasurement(visualMeasurement("oct"));
         seedVisualHistory("oct", NOW);
 
-        assertThrows404(() -> userDataService.setScore(user, "oct", -1, 1));
-        assertThrows404(() -> userDataService.setScore(user, "oct", 1, 1));
+        assertThrows404(() -> userDataService.setScore(user, user, "oct", -1, 1));
+        assertThrows404(() -> userDataService.setScore(user, user, "oct", 1, 1));
+    }
+
+    @Test
+    void setOfficerStoresTheOfficerIdAndSaves() {
+        UserDocument officer = new UserDocument("cmo", "hash", "tok");
+        officer.setId("officer-1");
+        officer.setStatus(org.vnk.healthmonitor.domain.dto.UserStatus.MEDICAL_OFFICER);
+        when(userData.findByUsername("cmo")).thenReturn(Optional.of(officer));
+
+        userDataService.setOfficer(user, "cmo");
+
+        assertEquals("officer-1", user.officerIdOf());
+        verify(userData).save(user);
+    }
+
+    @Test
+    void blankOfficerUsernameReturns400() {
+        ResponseStatusException e = assertThrows(ResponseStatusException.class,
+                () -> userDataService.setOfficer(user, null));
+        assertEquals(HttpStatus.BAD_REQUEST, e.getStatusCode());
+
+        ResponseStatusException blank = assertThrows(ResponseStatusException.class,
+                () -> userDataService.setOfficer(user, "  "));
+        assertEquals(HttpStatus.BAD_REQUEST, blank.getStatusCode());
+    }
+
+    @Test
+    void onlyMedicalOfficersCanBeAssignedAsOfficer() {
+        UserDocument normal = new UserDocument("crewmate", "hash", "tok");
+        normal.setId("normal-1");
+        when(userData.findByUsername("crewmate")).thenReturn(Optional.of(normal));
+
+        ResponseStatusException e = assertThrows(ResponseStatusException.class,
+                () -> userDataService.setOfficer(user, "crewmate"));
+
+        assertEquals(HttpStatus.CONFLICT, e.getStatusCode());
+    }
+
+    @Test
+    void unknownOfficerReturns404() {
+        when(userData.findByUsername("nobody")).thenReturn(Optional.empty());
+
+        ResponseStatusException e = assertThrows(ResponseStatusException.class,
+                () -> userDataService.setOfficer(user, "nobody"));
+
+        assertEquals(HttpStatus.NOT_FOUND, e.getStatusCode());
+    }
+
+    @Test
+    void settingYourselfAsOfficerReturns409() {
+        user.setId("self");
+        user.setStatus(org.vnk.healthmonitor.domain.dto.UserStatus.MEDICAL_OFFICER);
+        when(userData.findByUsername("astronaut")).thenReturn(Optional.of(user));
+
+        ResponseStatusException e = assertThrows(ResponseStatusException.class,
+                () -> userDataService.setOfficer(user, "astronaut"));
+
+        assertEquals(HttpStatus.CONFLICT, e.getStatusCode());
+    }
+
+    @Test
+    void aMedicalOfficerCannotTakeAnOfficer() {
+        user.setStatus(org.vnk.healthmonitor.domain.dto.UserStatus.MEDICAL_OFFICER);
+        UserDocument other = new UserDocument("chief", "hash", "tok");
+        other.setId("officer-2");
+        other.setStatus(org.vnk.healthmonitor.domain.dto.UserStatus.MEDICAL_OFFICER);
+        when(userData.findByUsername("chief")).thenReturn(Optional.of(other));
+
+        ResponseStatusException e = assertThrows(ResponseStatusException.class,
+                () -> userDataService.setOfficer(user, "chief"));
+
+        assertEquals(HttpStatus.CONFLICT, e.getStatusCode());
+        assertTrue(e.getMessage().contains("Officers cannot have an officer"));
+    }
+
+    @Test
+    void aChildCannotBeAssignedAsOfficer() {
+        // The named user already has an officer — no nested hierarchies.
+        UserDocument child = new UserDocument("kid", "hash", "tok");
+        child.setId("child-1");
+        child.setStatus(org.vnk.healthmonitor.domain.dto.UserStatus.MEDICAL_OFFICER);
+        child.setOfficerId("officer-1");
+        when(userData.findByUsername("kid")).thenReturn(Optional.of(child));
+
+        ResponseStatusException e = assertThrows(ResponseStatusException.class,
+                () -> userDataService.setOfficer(user, "kid"));
+
+        assertEquals(HttpStatus.CONFLICT, e.getStatusCode());
+        assertTrue(e.getMessage().contains("Officers cannot have an officer"));
+    }
+
+    @Test
+    void officerOfReturnsTheUsername() {
+        UserDocument officer = new UserDocument("cmo", "hash", "tok");
+        officer.setId("officer-1");
+        user.setOfficerId("officer-1");
+        when(userData.findById("officer-1")).thenReturn(Optional.of(officer));
+
+        assertEquals("cmo", userDataService.officerOf(user));
+
+        UserDocument standalone = new UserDocument("solo", "hash", "tok");
+        assertNull(userDataService.officerOf(standalone));
+    }
+
+    @Test
+    void setStatusStoresTheValueAndSaves() {
+        userDataService.setStatus(user, "Medical Officer");
+
+        assertEquals(org.vnk.healthmonitor.domain.dto.UserStatus.MEDICAL_OFFICER,
+                user.statusOf());
+        verify(userData).save(user);
+    }
+
+    @Test
+    void unknownStatusReturns400() {
+        ResponseStatusException e = assertThrows(ResponseStatusException.class,
+                () -> userDataService.setStatus(user, "captain"));
+
+        assertEquals(HttpStatus.BAD_REQUEST, e.getStatusCode());
+    }
+
+    @Test
+    void statusCannotChangeWithAnOfficer() {
+        user.setOfficerId("officer-1");
+
+        ResponseStatusException e = assertThrows(ResponseStatusException.class,
+                () -> userDataService.setStatus(user, "medical officer"));
+
+        assertEquals(HttpStatus.CONFLICT, e.getStatusCode());
+    }
+
+    @Test
+    void statusCannotChangeWithChildren() {
+        user.setId("officer-1");
+        when(userData.findByOfficerId("officer-1")).thenReturn(List.of(new UserDocument()));
+
+        ResponseStatusException e = assertThrows(ResponseStatusException.class,
+                () -> userDataService.setStatus(user, "normal"));
+
+        assertEquals(HttpStatus.CONFLICT, e.getStatusCode());
     }
 
     @Test

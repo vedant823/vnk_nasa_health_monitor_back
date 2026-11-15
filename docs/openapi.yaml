@@ -22,6 +22,8 @@ tags:
     description: Account creation and login
   - name: User data
     description: User data, reminders, and risk scores (Bearer token required)
+  - name: Officer
+    description: The officer's read + score view of their children (Bearer token required)
   - name: Static data
     description: Risk and measurement definitions (no auth)
 paths:
@@ -175,7 +177,10 @@ paths:
         logged visual measurement — the most recent one by default, or the
         reading at `measurementIndex` in the newest-first order the GET history
         endpoint serves (0 = most recent). Only visual measurements can be
-        scored, and the count cannot be negative. In risk scoring, one
+        scored, the count cannot be negative, and only a user without an
+        officer can judge images (a medical officer, or a standalone user
+        acting as their own CMO; a child gets 403 and their officer scores
+        through the child-scoped endpoint). In risk scoring, one
         abnormality counts as abnormal (−40) and two or more as dangerous
         (−75). Returns an empty 200 body.
       security: [{ bearerAuth: [] }]
@@ -199,6 +204,8 @@ paths:
           description: Scored (empty body)
         "400":
           $ref: "#/components/responses/BadRequest"
+        "403":
+          description: The caller has an officer
         "404":
           $ref: "#/components/responses/NotFound"
         "401":
@@ -417,6 +424,292 @@ paths:
           $ref: "#/components/responses/BadRequest"
         "401":
           $ref: "#/components/responses/Unauthorized"
+  /users/status:
+    get:
+      tags: [User data]
+      operationId: getStatus
+      summary: Get the user's status
+      description:
+        Returns the user's role (`normal` or `medical officer`). The status
+        determines whether the user can have children (crewmates) or an
+        officer, and whether they can judge visual images. New accounts
+        default to normal.
+      security: [{ bearerAuth: [] }]
+      responses:
+        "200":
+          description: The status label
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserStatus"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+    put:
+      tags: [User data]
+      operationId: setStatus
+      summary: Set the user's status
+      description:
+        Sets the user's role, given in `newStatus` (`normal` or
+        `medical officer`, case-insensitive). The status cannot change
+        while the user has an officer or children — remove the
+        relationship first. Returns an empty 200 body.
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - name: newStatus
+          in: query
+          required: true
+          description: The status to switch to
+          schema:
+            $ref: "#/components/schemas/UserStatus"
+      responses:
+        "200":
+          description: Updated (empty body)
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+  /users/officer:
+    get:
+      tags: [User data]
+      operationId: getOfficer
+      summary: Get the user's officer
+      description:
+        Returns the username of the officer supervising this user, or null
+        when the user is standalone.
+      security: [{ bearerAuth: [] }]
+      responses:
+        "200":
+          description: The officer's username, or null
+          content:
+            application/json:
+              schema:
+                type: [string, "null"]
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+    put:
+      tags: [User data]
+      operationId: setOfficer
+      summary: Set the user's officer
+      description:
+        Sets (or changes, at will) the officer supervising this user, given
+        by username in `newOfficer`. The named user must exist (404), must
+        be a medical officer (409), must not be the caller (409), and must
+        not have an officer of their own (409). A medical officer cannot
+        take an officer (409). Officers are read + score only. Returns an
+        empty 200 body.
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - name: newOfficer
+          in: query
+          required: true
+          description: The username of the medical officer to assign
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Updated (empty body)
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+  /users/children:
+    get:
+      tags: [Officer]
+      operationId: getChildren
+      summary: List the officer's children
+      description:
+        Lists the children currently assigned to the officer, each with
+        their most recent measurement timestamp for a home overview. An
+        officer with no children gets an empty list.
+      security: [{ bearerAuth: [] }]
+      responses:
+        "200":
+          description: The children
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ChildOverview"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+  /users/overdue:
+    get:
+      tags: [Officer]
+      operationId: getOverdue
+      summary: List overdue measurements across the officer's children
+      description:
+        Returns every overdue measurement of every child assigned to the
+        officer, ordered by due date — due when last-taken plus the
+        frequency has passed, or immediately if never taken. Only medical
+        officers can call it (403 otherwise). Each entry names the child
+        it belongs to.
+      security: [{ bearerAuth: [] }]
+      responses:
+        "200":
+          description: The overdue measurements
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ChildReminder"
+        "403":
+          description: The caller is not a medical officer
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+  /users/children/{childID}/risks:
+    get:
+      tags: [Officer]
+      operationId: getChildRisks
+      summary: Get a child's risk scores
+      description:
+        Scores every risk factor for the child exactly as the child's own
+        GET /users/risks would. Unknown child 404; a child assigned to
+        someone else (or to nobody) 403.
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: "#/components/parameters/ChildID"
+      responses:
+        "200":
+          description: The child's risk scores
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/RiskEvaluation"
+        "403":
+          description: The child is not assigned to this officer
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+  /users/children/{childID}/risks/{riskID}:
+    get:
+      tags: [Officer]
+      operationId: getChildRisk
+      summary: Get one risk score of a child
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: "#/components/parameters/ChildID"
+        - $ref: "#/components/parameters/RiskID"
+      responses:
+        "200":
+          description: The child's risk evaluation
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RiskEvaluation"
+        "403":
+          description: The child is not assigned to this officer
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+  /users/children/{childID}/measurements/{measurementID}:
+    get:
+      tags: [Officer]
+      operationId: getChildMeasurements
+      summary: Get a child's measurement history
+      description:
+        The child's logged history for one measurement, newest first — the
+        officer's view for reviewing visual scans.
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: "#/components/parameters/ChildID"
+        - $ref: "#/components/parameters/MeasurementID"
+      responses:
+        "200":
+          description: The child's history, newest first
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/MeasurementSet"
+        "403":
+          description: The child is not assigned to this officer
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+  /users/children/{childID}/measurements/{measurementID}/score:
+    put:
+      tags: [Officer]
+      operationId: setChildScore
+      summary: Record the CMO's abnormality count for a child's visual reading
+      description:
+        The officer's CMO review of one of the child's visual readings —
+        identical semantics to the user-scoped score endpoint, applied to
+        the child's most recent reading (or the one at `measurementIndex`
+        in the newest-first order).
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: "#/components/parameters/ChildID"
+        - $ref: "#/components/parameters/MeasurementID"
+        - name: numAbnormal
+          in: query
+          required: true
+          description: Number of abnormalities observed in the image (0 = reviewed and normal)
+          schema:
+            type: integer
+            minimum: 0
+        - name: measurementIndex
+          in: query
+          required: false
+          description: Index into the newest-first history (0 = most recent)
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Scored (empty body)
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "403":
+          description: The child is not assigned to this officer
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+  /users/children/{childID}/upcoming:
+    get:
+      tags: [Officer]
+      operationId: getChildUpcoming
+      summary: List a child's upcoming measurements
+      description:
+        The child's due reminders within the given window, ordered by due
+        date, so the officer sees who is behind on their baseline
+        checklist.
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: "#/components/parameters/ChildID"
+        - name: withinDays
+          in: query
+          required: false
+          description: The window in days (default 30)
+          schema:
+            type: integer
+            default: 30
+      responses:
+        "200":
+          description: The child's reminders
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Reminder"
+        "403":
+          description: The child is not assigned to this officer
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
   /data/risks:
     get:
       tags: [Static data]
@@ -521,6 +814,13 @@ components:
       description: A risk ID from `GET /data/risks` (e.g. `nutrition`)
       schema:
         type: string
+    ChildID:
+      name: childID
+      in: path
+      required: true
+      description: The user ID of one of the officer's children, from `GET /users/children`
+      schema:
+        type: string
   responses:
     BadRequest:
       description:
@@ -612,6 +912,35 @@ components:
           type: [integer, "null"]
           description: Abnormalities observed by the CMO (visual readings only)
           minimum: 0
+    ChildOverview:
+      type: object
+      description: One of an officer's children, as listed by GET /users/children.
+      properties:
+        userId:
+          type: string
+        username:
+          type: string
+        latestMeasurement:
+          type: [string, "null"]
+          format: date-time
+          description: When the child last logged any measurement (null if never)
+    ChildReminder:
+      type: object
+      description: One overdue measurement of one of an officer's children.
+      properties:
+        childId:
+          type: string
+        measurementId:
+          type: string
+        dueDate:
+          type: string
+          format: date-time
+    UserStatus:
+      type: string
+      description: >
+        The user's role. A medical officer can have children and judge
+        visual images; a normal user can have an officer.
+      enum: [normal, medical officer]
     Instruction:
       type: object
       properties:

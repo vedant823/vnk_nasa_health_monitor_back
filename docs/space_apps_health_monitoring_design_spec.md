@@ -45,7 +45,7 @@
       * Body: `username` (string, required), `password` (string, required)
       * Outputs `String` — the token
   * **UserController**
-    * Manages user data, reminders, and risks. Every endpoint requires `Authorization: Bearer <token>`; a missing header is 400 and an invalid token is 401.
+    * Manages user data, reminders, and risks. Every endpoint requires `Authorization: Bearer <token>`; a missing header is 400 and an invalid token is 401. An officer's token is an ordinary token — an officer reaches their children's data through the child-scoped OfficerController paths below, not through these endpoints.
     * `GET /users/measurements/{measurementID}`
       * Returns the user's logged history for one measurement, newest first. Values of baseline-relative measurements are served as the change from the user's baseline (percent or plain difference per `baselineMode`); absolute measurements are returned raw.
       * Path: `measurementID` — a measurement ID from the data endpoints
@@ -59,9 +59,9 @@
       * Query: `measurementIndex` (integer, optional)
       * Outputs nothing. Errors: 404 unknown measurement, 404 invalid index, 404 no readings logged, 400 deleting the baseline reading while other readings exist
     * `PUT /users/measurements/{measurementID}/score`
-      * Sets the score for the the most recent measurement, or the measurement of index `measurementIndex` if it is provided. The index counts from the newest-first order the GET history endpoint serves (0 = most recent). This only works for visual measurements.
+      * Sets the score for the the most recent measurement, or the measurement of index `measurementIndex` if it is provided. The index counts from the newest-first order the GET history endpoint serves (0 = most recent). This only works for visual measurements, and only a user without an officer can submit it — a medical officer, or a standalone user acting as their own CMO. A child (who has an officer) gets 403 and their officer scores through the child-scoped endpoint instead.
       * Query: `numAbnormal` (integer)
-      * Outputs nothing. Errors: 404 unknown measurement, 400 invalid measurement
+      * Outputs nothing. Errors: 404 unknown measurement, 400 invalid measurement, 403 the caller has an officer
     * `PUT /users/measurements/{measurementID}/frequency`
       * Sets how many days pass between reminders for one measurement (the frontend's frequency dropdown). The next due date becomes last-taken plus this many days.
       * Body: `frequencyDays` (integer, minimum 1)
@@ -87,12 +87,55 @@
     * `GET /users/environment`
       * Returns the user's current environment (a deliberate addition beyond the original PUT-only design, so the frontend can display it and pick the matching graph bands). New accounts default to "spacecraft".
       * Outputs `String` — the environment label
+    * `PUT /users/status`
+      * Sets the user's status to the value given in `newStatus`. The status determines whether the user can have crewmates (children) / an officer (a parent) and whether they can judge images.
+      * Query: `newStatus` (string, must be "normal" or "medical officer", case-insensitive)
+      * Outputs nothing. Errors: 409 conflict (if the user already has a child or parent user)
+    * `GET /users/status`
+      * Returns the user's current status. New accounts default to "normal".
+      * Outputs `String` — the status label
+    * `PUT /users/officer`
+      * Sets (or changes, at will and at any time) the officer supervising this user, given by username in the `newOfficer` query parameter. The officer can judge their images and see their data. The named user must exist (404), must be a medical officer (409), must not be the caller (409), and must not have an officer of their own (409 — the hierarchy is one level deep). A medical officer cannot take an officer (409). Officers are read + score only: they cannot log, delete, or change frequencies on behalf of a child.
+      * Query: `newOfficer` (string, required — a valid username)
+      * Outputs nothing. Errors: 404 unknown user, 409 self-assignment / the named user is not a medical officer / the named user already has an officer / the caller is a medical officer
     * `GET /users/measurements/{measurementID}/trend`
       * Compares the measurement's two most recent baseline-adjusted readings and returns their direction — a lightweight hint for the frontend graphs, no statistical modelling. `up` and `down` are raw directions; whether that is good or bad depends on the measurement.
       * Outputs `MeasurementTrend` — `{measurementId, direction}`, direction `"up"`, `"down"`, `"flat"` (within 0.5%), or `null` with fewer than two readings
     * `GET /users/digest`
       * Returns the user's daily/weekly/monthly reminder digest — the exact buckets the scheduled notification sender delivers, built from one 30-day snapshot and partitioned into disjoint buckets: each measurement lands in exactly one bucket, the smallest window it is due within (daily holds the urgent, including overdue, set; a fresh user's weekly and monthly buckets are empty). Lets the frontend's reminders screen show precisely what the notifications say.
       * Outputs `ReminderDigest` — `{username, daily[], weekly[], monthly[]}`, each bucket a list of `Reminder`
+    * `PUT /users/officer`
+      * Sets (or changes, at will and at any time) the officer supervising this user, given by username in the `newOfficer` query parameter. The named user must exist (404), must be a medical officer (409), must not be the caller (409), and must not have an officer of their own (409 — the hierarchy is one level deep). A medical officer cannot take an officer (409). Officers are read + score only: they cannot log, delete, or change frequencies on behalf of a child.
+      * Query: `newOfficer` (string, required — a valid username)
+      * Outputs nothing. Errors: 404 unknown user, 409 self-assignment / the named user is not a medical officer / the named user already has an officer / the caller is a medical officer
+    * `GET /users/officer`
+      * Returns the username of the user's current officer, or the literal `null` when the user is standalone (String endpoints serve raw text, so the null case needs the explicit marker).
+      * Outputs `String` — the officer's username
+  * **OfficerController**
+    * The officer's view of their children: read-only health data plus the CMO score entry for visual readings. Every endpoint requires `Authorization: Bearer <token>` (the officer's token); a token that does not belong to the named child's officer is 403, and an unknown child ID is 404.
+    * `GET /users/children`
+      * Lists the children currently assigned to the officer, with each child's most recent measurement timestamp for the home overview. An officer with no children gets an empty list.
+      * Outputs `List<ChildOverview>` — each `{userId, username, latestMeasurement}`
+    * `GET /users/children/{childID}/risks`
+      * The child's full risk evaluation — the same `JudgementService` scoring as `GET /users/risks`, computed against the child's document.
+      * Outputs `List<RiskEvaluation>`
+    * `GET /users/children/{childID}/risks/{riskID}`
+      * One risk of a child: score, advice, and reason.
+      * Outputs `RiskEvaluation`. Errors: 404 unknown risk
+    * `GET /users/children/{childID}/measurements/{measurementID}`
+      * The child's logged history for one measurement, newest first — the officer's view for reviewing visual scans.
+      * Outputs `List<MeasurementSet>`
+    * `PUT /users/children/{childID}/measurements/{measurementID}/score`
+      * The officer performs the CMO review: sets `numAbnormal` on the child's most recent visual reading (or the reading at `measurementIndex` in the newest-first order), with identical semantics and errors to the user-scoped score endpoint.
+      * Query: `numAbnormal` (integer), `measurementIndex` (integer, optional)
+      * Outputs nothing. Errors: 404 unknown measurement / no readings / bad index, 400 numerical or negative
+    * `GET /users/children/{childID}/upcoming`
+      * The child's due/overdue reminders, so the officer sees who is behind on their baseline checklist.
+      * Query: `withinDays` (integer, optional, default 30)
+      * Outputs `List<Reminder>`
+    * `GET /users/overdue`
+      * Returns the overdue measurements of every child under the officer making the request, ordered by due date — due when `lastTaken + frequencyDays` has passed, or immediately if never taken. Only medical officers can call it (403 otherwise).
+      * Outputs `List<ChildReminder>` — each `{childId, measurementId, dueDate}` (a deliberate evolution over a bare `Reminder`: with several children in one list, the entry must say whose measurement is overdue)
   * **DataController**
     * Serves measurement instructions as well as risk overviews. No authentication: this is the same static content for every user.
     * `GET /data/measurements/{measurementID}`
@@ -113,7 +156,7 @@
     * History values of baseline-relative measurements are served as the change from the user's baseline (percent or difference per `baselineMode`), matching the units the spec defines for those measurements; absolute measurements are unchanged.
 * **Services**
   * **UserDataService**
-    * Stores and retrieves user data from the repository (Makes sure to update measurement dates when logging one)
+    * Stores and retrieves user data from the repository (Makes sure to update measurement dates when logging one). Also owns the account-relationship mutations: `setStatus` (409 while a relationship exists), `setOfficer` (404/409 as per the endpoint), `officerOf` (the officer's username for GET /users/officer), and the `setScore` gate that only lets a user without an officer judge images.
   * **UserLoginService**
     * Handles the login procedure and creates new accounts
   * **UserReminderService**
@@ -122,6 +165,8 @@
     * Gets the risk data and measurement instructions using Jackson and records
   * **JudgementService**
     * Rule-based judging against the guideline ranges for the user's environment (no statistics, no AI). Each numerical measurement's latest value is classified against the range in `measurementDetails.json` matching the user's environment: below `abnormalLow` (or above `abnormalHigh`) is abnormal, and beyond `dangerousLow`/`dangerousHigh` is dangerous. Scoring starts at 100; each abnormal measurement subtracts 40 and each dangerous one subtracts 75, stacking and floored at 1. The recommendation string matching the violated side of every abnormal measurement is collected into the advice (a list), ordered most severe first. Visual measurements are stored, and the user can add a number of abnormalities through `PUT /users/measurements/{measurementID}/score`. From there, 1 abnormality triggers an abnormal measurement, while 2 or more trigger a dangerous measurement.
+  * **OfficerService**
+    * The plumbing behind the officer-child relationship: verifies that the token-holding officer may access the requested child (unknown child 404, a child assigned to someone else or to nobody 403), then delegates to the existing `UserDataService`, `JudgementService`, and `UserReminderService` with the child's document. No analysis logic lives here. Also compiles the cross-child overdue list (`GET /users/overdue`, officers only) from `UserReminderService.getOverdue` per child.
   * **BadgeService**
     * Checks if a badge has been earned and delivers a `BadgeDetails` object based off of the user's history.
 * **Repositories / Databases**
@@ -133,6 +178,8 @@
       * Physical or Psychological, used in RiskFactor
     * `MeasurementCategory`
       * Numerical or Visual, used in Measurement
+    * `UserStatus`
+      * Normal or Medical Officer, used in User
   * **“Static” classes:**
     * `RiskFactor`
       * Uses a string ID as well as a category and contains child measurements’ IDs and a string for the explanation of the risk’s purpose
@@ -146,8 +193,12 @@
       * Contains a criterion's set of valid measurements and some booleans dictating its behavior as well as an integer specifying its length.
   * **Non-static classes:**
     * `User` + `User (document)`
-      * Contains a user’s username, hashed password, and current token as well as their environment.
+      * Contains a user’s username, hashed password, and current token as well as their environment. Alongside this, it contains the user's status ("normal" or "medical officer") and, optionally, the ID of the user's officer (a medical officer). The relationship lives entirely on the child side — an officer's children are found by querying `officerId` (a deliberate evolution over storing usernames: IDs never drift, and the officer endpoints still serve usernames).
       * Document class contains a map of measurement IDs to MeasurementSet objects
+    * `ChildOverview`
+      * Contains a child's user ID, username, and latest measurement timestamp — enough for the officer's home overview without pulling full histories.
+    * `ChildReminder`
+      * Contains a child's user ID, a measurement ID, and the date the measurement was due — one overdue measurement of one child, as listed by `GET /users/overdue`.
     * `MeasurementSet`
       * Contains a list / array of numbers or `VisualMeasurement` along with the user ID it is associated with and the Measurement ID it corresponds to
     * `VisualMeasurement`
@@ -191,7 +242,7 @@
 * **API client artifacts:** `docs/openapi.yaml` (OpenAPI 3.1, every endpoint and schema, mirrors the descriptive REST section above; importable into Hoppscotch, Postman, and Insomnia).
 * **Testing:** Two-layer suite. Unit tests (plain JUnit + Mockito; services with mocked dependencies and a fixed `Clock`, controllers via standalone MockMvc with mocked services) run with `./gradlew test` and need no external services. Functional tests (tagged `functional`, `@SpringBootTest(RANDOM_PORT)` driving the fully booted app over real HTTP against the Dockerized MongoDB in the dedicated `healthmonitor-functional` database) run with `./gradlew functionalTest` after `docker-compose up -d`; they cover the complete user journey, auth and error paths (missing header → 400, invalid token → 401, unknown IDs → 404, duplicate username → 409, validation errors → 400), the data endpoints, CORS preflight/actual requests for the Hoppscotch origin, and the notification digests. The functional database is dropped before each test class and again when the test JVM exits, so runs leave no permanent data behind. (Note: the database URIs must use `spring.mongodb.uri` — Spring Boot 4 deprecated `spring.data.mongodb.uri` at error level, and the old key was silently ignored, sending everything to Mongo's default `test` database.)
 * **Package layout:** `controller/`, `service/`, `repository/`, `domain/{dto,document}/`, `config/` (CORS + error handling + Clock + scheduling).
-* **Status:** All spec classes exist; controllers are wired to services; service logic is implemented as described above. Controllers remain pure delegation. The daily/weekly/monthly reminder notifications (the spec's headline requirement) are implemented and tested; the badge system (`GET /users/badges`, `BadgeService`, `badges.json`), the environment feature (`PUT`/`GET /users/environment`, per-environment guideline ranges in `measurementDetails.json` used by scoring and badge evaluation), and visual measurement scoring (`PUT /users/measurements/{measurementID}/score` with `numAbnormal`, `GET /data/measurements/{measurementID}/flags`, and abnormality-count-based judging in `JudgementService`) are implemented and tested. The test suite is green.
+* **Status:** All spec classes exist; controllers are wired to services; service logic is implemented as described above. Controllers remain pure delegation. The daily/weekly/monthly reminder notifications (the spec's headline requirement) are implemented and tested; the badge system (`GET /users/badges`, `BadgeService`, `badges.json`), the environment feature (`PUT`/`GET /users/environment`, per-environment guideline ranges in `measurementDetails.json` used by scoring and badge evaluation), visual measurement scoring (`PUT /users/measurements/{measurementID}/score` with `numAbnormal`, `GET /data/measurements/{measurementID}/flags`, and abnormality-count-based judging in `JudgementService`), and the officer-child system (`PUT`/`GET /users/status`, `PUT`/`GET /users/officer`, the OfficerController child-scoped read + score paths, and `GET /users/overdue`) are implemented and tested. The test suite is green.
 
 ---
 

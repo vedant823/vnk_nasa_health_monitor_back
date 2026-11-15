@@ -98,7 +98,8 @@ public class UserController {
     /**
      * Sets how many abnormalities the Crew Medical Officer observed in
      * one logged visual measurement: the most recent one by default, or
-     * the one at the given newest-first index (0 = most recent).
+     * the one at the given newest-first index (0 = most recent). Only a
+     * user without an officer can judge images.
      */
     @PutMapping("/users/measurements/{measurementID}/score")
     public void setScore(
@@ -107,7 +108,7 @@ public class UserController {
             @RequestParam("numAbnormal") int numAbnormal,
             @RequestParam(name = "measurementIndex", required = false) Integer measurementIndex) {
         UserDocument user = userLoginService.resolveUser(authorization);
-        userDataService.setScore(user, measurementId, measurementIndex, numAbnormal);
+        userDataService.setScore(user, user, measurementId, measurementIndex, numAbnormal);
     }
 
     /**
@@ -163,6 +164,54 @@ public class UserController {
     public BadgeSet getBadges(@RequestHeader("Authorization") String authorization) {
         UserDocument user = userLoginService.resolveUser(authorization);
         return badgeService.evaluate(user);
+    }
+
+    /**
+     * Sets (or changes, at will) the officer supervising this user. The
+     * named user must be a medical officer without an officer of their
+     * own.
+     */
+    @PutMapping("/users/officer")
+    public void setOfficer(
+            @RequestHeader("Authorization") String authorization,
+            @RequestParam("newOfficer") String newOfficer) {
+        UserDocument user = userLoginService.resolveUser(authorization);
+        userDataService.setOfficer(user, newOfficer);
+    }
+
+    /**
+     * Returns the username of the user's officer, or the literal "null"
+     * when the user is standalone (String endpoints here serve raw text,
+     * so the null case needs the explicit marker).
+     */
+    @GetMapping("/users/officer")
+    public String getOfficer(@RequestHeader("Authorization") String authorization) {
+        UserDocument user = userLoginService.resolveUser(authorization);
+        String officer = userDataService.officerOf(user);
+        return officer != null ? officer : "null";
+    }
+
+    /**
+     * Sets the user's status ("normal" or "medical officer"), which
+     * determines whether they can have children or an officer and judge
+     * images. The status cannot change while a relationship exists.
+     */
+    @PutMapping("/users/status")
+    public void setStatus(
+            @RequestHeader("Authorization") String authorization,
+            @RequestParam("newStatus") String newStatus) {
+        UserDocument user = userLoginService.resolveUser(authorization);
+        userDataService.setStatus(user, newStatus);
+    }
+
+    /**
+     * Returns the user's current status. New accounts default to
+     * "normal".
+     */
+    @GetMapping("/users/status")
+    public String getStatus(@RequestHeader("Authorization") String authorization) {
+        UserDocument user = userLoginService.resolveUser(authorization);
+        return user.statusOf().getLabel();
     }
 
     /**

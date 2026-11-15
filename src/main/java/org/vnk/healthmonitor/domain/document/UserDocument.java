@@ -11,12 +11,15 @@ import java.util.List;
 import java.util.Map;
 import org.vnk.healthmonitor.domain.dto.BaselineMode;
 import org.vnk.healthmonitor.domain.dto.Environment;
+import org.vnk.healthmonitor.domain.dto.UserStatus;
 
 /**
  * One user account: username, hashed password, and current token.
  * The document holds, keyed by measurement ID, the measurement data
  * (history of MeasurementSet objects) plus measurement times and
- * frequencies, which drive reminders and scoring.
+ * frequencies, which drive reminders and scoring. It also carries the
+ * optional officer relationship: officers see their children's data
+ * (read + score) through the OfficerController.
  */
 @Document(collection = "users")
 public class UserDocument {
@@ -31,6 +34,13 @@ public class UserDocument {
 
     @Indexed(unique = true)
     private String token;
+
+    /** The ID of the officer supervising this user, or null when standalone. */
+    @Indexed
+    private String officerId;
+
+    /** The user's role ("normal" or "medical officer"), stored as its label. */
+    private String status;
 
     /** Days between reminders, keyed by measurement ID. */
     private Map<String, Integer> measurementFrequencies = new HashMap<>();
@@ -148,6 +158,32 @@ public class UserDocument {
             case DIFFERENCE -> rawValue - baseline;
             case NONE -> null;
         };
+    }
+
+    /**
+     * The ID of the officer supervising this user, or null when the user
+     * is standalone (or an officer themselves). Null for documents saved
+     * before officers existed.
+     */
+    public String officerIdOf() {
+        return officerId;
+    }
+
+    public void setOfficerId(String officerId) {
+        this.officerId = officerId;
+    }
+
+    /**
+     * The user's role: normal, or medical officer (who can have children
+     * and judge visual measurements). Documents saved before statuses
+     * existed default to normal.
+     */
+    public UserStatus statusOf() {
+        return status == null ? UserStatus.NORMAL : UserStatus.from(status);
+    }
+
+    public void setStatus(UserStatus status) {
+        this.status = status.getLabel();
     }
 
     public List<MeasurementSet> historyOf(String measurementId) {

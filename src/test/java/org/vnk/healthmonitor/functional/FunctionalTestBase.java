@@ -125,6 +125,9 @@ public abstract class FunctionalTestBase {
                                     Integer numAbnormal) {
     }
 
+    public record ChildOverviewDto(String userId, String username, String latestMeasurement) {
+    }
+
     public record DigestDto(String username,
                             java.util.List<ReminderDto> daily,
                             java.util.List<ReminderDto> weekly,
