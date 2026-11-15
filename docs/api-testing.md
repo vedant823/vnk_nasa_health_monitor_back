@@ -4,6 +4,13 @@ The API is fully exercisable from the [Hoppscotch web app](https://hoppscotch.io
 no desktop app needed. (`/users/login` used to be a GET-with-body, which browsers
 cannot send; it is now `PUT /users/login`.)
 
+Shortcut: **`docs/openapi.yaml`** is the OpenAPI 3.1 spec — import it via
+Collections → Import → *Import from OpenAPI* (file or URL) to get every endpoint
+pre-created. Hoppscotch does not import request bodies from OpenAPI, so type the
+JSON bodies by hand where needed; the walkthrough below shows each one.
+
+The walkthrough builds each request by hand so the semantics stay visible.
+
 ## 1. Point Hoppscotch at the API
 
 **Prerequisite (macOS with colima):** the Docker daemon runs inside colima.

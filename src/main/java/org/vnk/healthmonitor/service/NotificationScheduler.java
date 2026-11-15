@@ -12,17 +12,20 @@ import org.vnk.healthmonitor.repository.UserData;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
 
 /**
  * Runs daily and emits every user's reminder digest for the next day,
- * week, and month. The buckets are built by reusing
- * {@link UserReminderService#getUpcoming} with different windows, so the
- * due-date math lives in exactly one place.
+ * week, and month. The buckets are built by partitioning a single
+ * snapshot of {@link UserReminderService#getUpcoming} over 30 days, so
+ * the due-date math lives in exactly one place.
  *
- * The bean always exists so the digest stays servable over HTTP
- * (GET /users/digest) even when notifications are off;
- * {@code app.notifications.enabled} gates only the scheduled sending.
+ * The buckets are disjoint: each measurement lands in exactly one bucket,
+ * the smallest window it is due within (overdue measurements sit in
+ * daily). {@code app.notifications.enabled} gates only the scheduled
+ * sending; the bean always exists so the digest stays servable over HTTP
+ * (GET /users/digest).
  */
 @Component
 public class NotificationScheduler {
@@ -52,26 +55,31 @@ public class NotificationScheduler {
 
     /**
      * Builds one user's digest from a single snapshot of the month
-     * window, so the three buckets share identical Reminder objects and
-     * always nest (daily inside weekly inside monthly). Plain and
-     * Clock-driven, so it is unit-testable without waiting for the
-     * schedule.
+     * window, partitioned into disjoint buckets: daily (due within a
+     * day, including overdue), weekly (the rest of the week), and
+     * monthly (the rest of the month). Plain and Clock-driven, so it is
+     * unit-testable without waiting for the schedule.
      */
     public ReminderDigest buildDigest(UserDocument user) {
-        List<Reminder> monthly = userReminderService.getUpcoming(user, MONTHLY_WINDOW_DAYS);
-        Instant now = clock.instant();
-        return new ReminderDigest(
-                user.getUsername(),
-                dueWithin(monthly, now, DAILY_WINDOW_DAYS),
-                dueWithin(monthly, now, WEEKLY_WINDOW_DAYS),
-                monthly);
-    }
-
-    private List<Reminder> dueWithin(List<Reminder> reminders, Instant now, int days) {
-        Instant horizon = now.plus(Duration.ofDays(days));
-        return reminders.stream()
-                .filter(reminder -> !reminder.dueDate().isAfter(horizon))
-                .toList();
+        List<Reminder> month = userReminderService.getUpcoming(user, MONTHLY_WINDOW_DAYS);
+        Instant dailyHorizon = clock.instant().plus(Duration.ofDays(DAILY_WINDOW_DAYS));
+        Instant weeklyHorizon = clock.instant().plus(Duration.ofDays(WEEKLY_WINDOW_DAYS));
+        List<Reminder> daily = new ArrayList<>();
+        List<Reminder> weekly = new ArrayList<>();
+        List<Reminder> monthly = new ArrayList<>();
+        // The snapshot is ordered by due date, so each bucket stays ordered.
+        for (Reminder reminder : month) {
+            Instant due = reminder.dueDate();
+            if (!due.isAfter(dailyHorizon)) {
+                daily.add(reminder);
+            } else if (!due.isAfter(weeklyHorizon)) {
+                weekly.add(reminder);
+            } else {
+                monthly.add(reminder);
+            }
+        }
+        return new ReminderDigest(user.getUsername(),
+                List.copyOf(daily), List.copyOf(weekly), List.copyOf(monthly));
     }
 
     /**

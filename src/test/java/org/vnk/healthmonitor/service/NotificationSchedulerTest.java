@@ -76,50 +76,62 @@ class NotificationSchedulerTest {
     }
 
     @Test
-    void weeklyBucketHoldsEverythingDueWithinAWeek() {
+    void weeklyBucketHoldsOnlyTheRestOfTheWeek() {
         ReminderDigest digest = scheduler.buildDigest(user);
 
-        assertEquals(List.of("overdue", "due_today", "due_week"),
+        // Disjoint buckets: the urgent items live in daily, not weekly.
+        assertEquals(List.of("due_week"),
                 digest.weekly().stream().map(Reminder::measurementId).toList());
     }
 
     @Test
-    void monthlyBucketHoldsEverythingDueWithinAMonth() {
+    void monthlyBucketHoldsOnlyTheRestOfTheMonth() {
         ReminderDigest digest = scheduler.buildDigest(user);
 
-        assertEquals(List.of("overdue", "due_today", "due_week", "due_month"),
+        assertEquals(List.of("due_month"),
                 digest.monthly().stream().map(Reminder::measurementId).toList());
     }
 
     @Test
-    void bucketsNestDailyInsideWeeklyInsideMonthly() {
+    void bucketsAreDisjointAndCoverTheWholeMonth() {
         ReminderDigest digest = scheduler.buildDigest(user);
 
-        assertTrue(digest.weekly().containsAll(digest.daily()));
-        assertTrue(digest.monthly().containsAll(digest.weekly()));
+        List<String> daily = digest.daily().stream().map(Reminder::measurementId).toList();
+        List<String> weekly = digest.weekly().stream().map(Reminder::measurementId).toList();
+        List<String> monthly = digest.monthly().stream().map(Reminder::measurementId).toList();
+        for (String id : List.of("overdue", "due_today", "due_week", "due_month")) {
+            long memberships = (daily.contains(id) ? 1 : 0)
+                    + (weekly.contains(id) ? 1 : 0)
+                    + (monthly.contains(id) ? 1 : 0);
+            assertEquals(1, memberships, id + " must be in exactly one bucket");
+        }
+        assertFalse(daily.stream().anyMatch(weekly::contains));
+        assertFalse(daily.stream().anyMatch(monthly::contains));
+        assertFalse(weekly.stream().anyMatch(monthly::contains));
     }
 
     @Test
-    void neverTakenMeasurementAppearsInAllBuckets() {
+    void neverTakenMeasurementAppearsOnlyInDaily() {
         UserDocument fresh = new UserDocument("fresh", "hash", "token");
         fresh.getMeasurementFrequencies().put("overdue", 7);
 
         ReminderDigest digest = scheduler.buildDigest(fresh);
 
-        // Never taken -> due now -> daily, weekly, and monthly.
+        // Never taken -> due now -> the urgent daily bucket only.
         assertTrue(digest.daily().stream().anyMatch(r -> r.measurementId().equals("overdue")));
-        assertTrue(digest.weekly().stream().anyMatch(r -> r.measurementId().equals("overdue")));
-        assertTrue(digest.monthly().stream().anyMatch(r -> r.measurementId().equals("overdue")));
+        assertFalse(digest.weekly().stream().anyMatch(r -> r.measurementId().equals("overdue")));
+        assertFalse(digest.monthly().stream().anyMatch(r -> r.measurementId().equals("overdue")));
     }
 
     @Test
-    void fullyUpToDateUserGetsEmptyDigest() {
+    void measurementDueExactlyInAWeekLandsInWeekly() {
         UserDocument caught = new UserDocument("caught", "hash", "token");
         caught.getMeasurementFrequencies().put("overdue", 7);
-        caught.getMeasurementLastTaken().put("overdue", NOW); // due in 7 days -> outside day window
+        caught.getMeasurementLastTaken().put("overdue", NOW); // due exactly at the weekly horizon
 
         ReminderDigest digest = scheduler.buildDigest(caught);
 
+        assertTrue(digest.weekly().stream().anyMatch(r -> r.measurementId().equals("overdue")));
         assertFalse(digest.daily().stream().anyMatch(r -> r.measurementId().equals("overdue")));
     }
 

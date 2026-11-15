@@ -4,9 +4,10 @@ import java.util.List;
 
 /**
  * The daily/weekly/monthly reminder digest computed for one user by the
- * notification scheduler. Each bucket contains every measurement due
- * within that window (so buckets nest: daily is included in weekly and
- * monthly); the sender decides how to present them.
+ * notification scheduler. The buckets are disjoint: every measurement
+ * due within a month appears in exactly one bucket, the smallest window
+ * it falls within — daily holds the urgent (including overdue) set,
+ * weekly the rest of the week, monthly the rest of the month.
  */
 public record ReminderDigest(
         String username,

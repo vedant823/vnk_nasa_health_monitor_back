@@ -18,7 +18,7 @@ measurement reminders. A React frontend will consume this API (not part of this 
 - **Reminders** — per-measurement frequency (days between reminders); a measurement is due
   when `lastTaken + frequencyDays` has passed, or immediately if never taken.
 - **Daily/weekly/monthly notifications** — a scheduled job builds every user's digest
-  (day ⊂ week ⊂ month buckets) and hands it to a pluggable `NotificationSender`
+  (disjoint day/week/month buckets) and hands it to a pluggable `NotificationSender`
   (logging implementation now; email/push later). The same buckets are served over
   HTTP via `GET /users/digest`.
 - **Nothing hardcoded** — risks, measurements, thresholds, recommendations, and instructions
@@ -51,6 +51,12 @@ Hoppscotch — a request-by-request walkthrough is in [`docs/api-testing.md`](do
 Auth: `POST` (create account) and `PUT` (log in) on `/users/login` take credentials in the
 body and return a token; send it as
 `Authorization: Bearer <token>` on every `/users/**` request. `/data/**` is public.
+
+Ready-made API clients live in `docs/`:
+
+- **`docs/openapi.yaml`** — OpenAPI 3.1 specification; imports into Hoppscotch
+  (Import from OpenAPI), Postman, Insomnia, and most API tools. Note that Hoppscotch
+  does not import request bodies from OpenAPI, so bodies must be typed by hand.
 
 | Method & path | Purpose |
 | --- | --- |
