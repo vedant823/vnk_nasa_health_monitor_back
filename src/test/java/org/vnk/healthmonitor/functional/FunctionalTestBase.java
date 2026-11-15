@@ -85,6 +85,12 @@ public abstract class FunctionalTestBase {
                                     java.util.List<Double> values, java.util.List<String> images) {
     }
 
+    public record DigestDto(String username,
+                            java.util.List<ReminderDto> daily,
+                            java.util.List<ReminderDto> weekly,
+                            java.util.List<ReminderDto> monthly) {
+    }
+
     /**
      * Sends an HTTP request to the running app. Supports bodies on any
      * method (including GET, which Hoppscotch desktop also sends for

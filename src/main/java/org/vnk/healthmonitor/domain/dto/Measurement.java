@@ -19,6 +19,7 @@ public record Measurement(
         Double abnormalHigh,
         Double dangerousHigh,
         boolean canBeNegative,
+        BaselineMode baselineMode,
         String lowRecommendation,
         String highRecommendation,
         List<Instruction> instructions

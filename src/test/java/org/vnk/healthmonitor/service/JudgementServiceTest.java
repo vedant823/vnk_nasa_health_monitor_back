@@ -2,6 +2,7 @@ package org.vnk.healthmonitor.service;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.vnk.healthmonitor.domain.dto.BaselineMode;
 import org.vnk.healthmonitor.domain.dto.Instruction;
 import org.vnk.healthmonitor.domain.dto.Measurement;
 import org.vnk.healthmonitor.domain.dto.MeasurementCategory;
@@ -39,9 +40,17 @@ class JudgementServiceTest {
     private Measurement numerical(String id, Double dangerousLow, Double abnormalLow,
                                   Double abnormalHigh, Double dangerousHigh,
                                   String lowRecommendation, String highRecommendation) {
+        return numerical(id, dangerousLow, abnormalLow, abnormalHigh, dangerousHigh,
+                BaselineMode.NONE, lowRecommendation, highRecommendation);
+    }
+
+    private Measurement numerical(String id, Double dangerousLow, Double abnormalLow,
+                                  Double abnormalHigh, Double dangerousHigh,
+                                  BaselineMode baselineMode,
+                                  String lowRecommendation, String highRecommendation) {
         return new Measurement(id, id, MeasurementCategory.NUMERICAL, "units",
                 dangerousLow, abnormalLow, abnormalHigh, dangerousHigh, false,
-                lowRecommendation, highRecommendation, List.of());
+                baselineMode, lowRecommendation, highRecommendation, List.of());
     }
 
     private void logValue(String measurementId, double value) {
@@ -198,7 +207,7 @@ class JudgementServiceTest {
     @Test
     void visualMeasurementsAreExcludedFromScoringButNoted() {
         Measurement visual = new Measurement("v1", "v1", MeasurementCategory.VISUAL, null,
-                null, null, null, null, false, null, null, List.of());
+                null, null, null, null, false, BaselineMode.NONE, null, null, List.of());
         givenMeasurements(visual);
         user.getMeasurementHistory().computeIfAbsent("v1", id -> new ArrayList<>())
                 .add(new MeasurementSet("v1", "user", Instant.now(), null, List.of("image")));
@@ -266,5 +275,62 @@ class JudgementServiceTest {
         assertEquals(60, evaluations.get(0).score());
         assertEquals("r2", evaluations.get(1).riskId());
         assertEquals(100, evaluations.get(1).score());
+    }
+
+    @Test
+    void percentBaselineConvertsRawReadingBeforeScoring() {
+        // Baseline 70, latest raw 66 -> -5.71% is dangerously low (< -5).
+        givenMeasurements(numerical("m1", -5.0, -2.0, 3.0, 5.0,
+                BaselineMode.PERCENT, "low rec", "high rec"));
+        logValue("m1", 70);
+        logValue("m1", 66);
+        user.recordBaselineIfAbsent("m1", 70);
+        RiskFactor risk = new RiskFactor("r1", "Risk", null, List.of("m1"), "reason");
+
+        RiskEvaluation evaluation = judgementService.evaluate(user, risk);
+
+        assertEquals(25, evaluation.score());
+        assertEquals(List.of("low rec"), evaluation.advice());
+    }
+
+    @Test
+    void percentBaselineNormalReadingStaysNormal() {
+        // Baseline 70, latest raw 69 -> -1.43%, within the normal band.
+        givenMeasurements(numerical("m1", -5.0, -2.0, 3.0, 5.0,
+                BaselineMode.PERCENT, "low rec", "high rec"));
+        logValue("m1", 70);
+        logValue("m1", 69);
+        user.recordBaselineIfAbsent("m1", 70);
+        RiskFactor risk = new RiskFactor("r1", "Risk", null, List.of("m1"), "reason");
+
+        assertEquals(100, judgementService.evaluate(user, risk).score());
+    }
+
+    @Test
+    void differenceBaselineComparesAgainstBaselineInUnits() {
+        // Baseline 400, latest raw 440 -> +40 units is abnormal high (> 20).
+        givenMeasurements(numerical("m1", null, null, 20.0, null,
+                BaselineMode.DIFFERENCE, "low rec", "high rec"));
+        logValue("m1", 400);
+        logValue("m1", 440);
+        user.recordBaselineIfAbsent("m1", 400);
+        RiskFactor risk = new RiskFactor("r1", "Risk", null, List.of("m1"), "reason");
+
+        RiskEvaluation evaluation = judgementService.evaluate(user, risk);
+
+        assertEquals(60, evaluation.score());
+        assertEquals(List.of("high rec"), evaluation.advice());
+    }
+
+    @Test
+    void relativeMeasurementWithoutBaselineFallsBackToRawValue() {
+        // Legacy data recorded before baselines existed: the raw value is
+        // already a percent change and is scored as-is.
+        givenMeasurements(numerical("m1", -5.0, -2.0, 3.0, 5.0,
+                BaselineMode.PERCENT, "low rec", "high rec"));
+        logValue("m1", -6);
+        RiskFactor risk = new RiskFactor("r1", "Risk", null, List.of("m1"), "reason");
+
+        assertEquals(25, judgementService.evaluate(user, risk).score());
     }
 }

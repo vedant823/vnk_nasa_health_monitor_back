@@ -77,4 +77,20 @@ class NotificationFunctionalTest extends FunctionalTestBase {
         // notification pipeline; push/email implement the same interface).
         notificationSender.send(digest);
     }
+
+    @Test
+    void digestEndpointServesTheSameBucketsOverHttp() throws Exception {
+        String username = uniqueUsername();
+        String token = createAccount(username);
+
+        HttpResponse<String> response = send("GET", "/users/digest", null, authHeader(token));
+        assertEquals(200, response.statusCode());
+
+        DigestDto digest = parse(response.body(), DigestDto.class);
+        assertEquals(username, digest.username());
+        assertFalse(digest.daily().isEmpty(), "A fresh user is due for every measurement now");
+        assertTrue(digest.monthly().containsAll(digest.weekly()));
+        assertTrue(digest.weekly().containsAll(digest.daily()));
+        assertTrue(digest.daily().stream().anyMatch(r -> r.measurementId().equals("white_blood_cells")));
+    }
 }

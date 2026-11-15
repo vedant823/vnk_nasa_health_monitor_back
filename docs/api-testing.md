@@ -71,7 +71,17 @@ Use the IDs from these responses in the URLs below — nothing needs to be hardc
   ```
 
   Visual measurements instead take `{"image": "<base64>"}`.
-* `GET /users/measurements/white_blood_cells` — the logged history, newest first
+* `GET /users/measurements/white_blood_cells` — the logged history, newest first.
+
+  Baseline-relative measurements (`body_mass_change`, `grip_strength_change`,
+  `memory_score_change`, `balance_score_change`, `retinal_thickness_change`) take
+  **plain raw values** (e.g. body mass in kilograms). The first logged value becomes
+  the user's baseline, and the history is served as the change from that baseline —
+  percent change for the percent-unit measurements, plain difference in the
+  measurement's unit for retinal thickness. Absolute measurements are returned as-is.
+* `GET /users/measurements/body_mass_change/trend` — the direction of the two most
+  recent baseline-adjusted readings: `{"measurementId": "...", "direction": "up"}`.
+  Direction is `"up"`, `"down"`, `"flat"`, or `null` with fewer than two readings.
 * `PUT /users/measurements/white_blood_cells/frequency` — days between reminders:
 
   ```json
@@ -80,6 +90,12 @@ Use the IDs from these responses in the URLs below — nothing needs to be hardc
 * `GET /users/upcoming?withinDays=30` — reminders due in the next N days, ordered by due date
 * `GET /users/risks` — every risk score for the user
 * `GET /users/risks/immune_dysregulation` — one risk's score, advice, and reason
+* `GET /users/digest` — the daily/weekly/monthly reminder digest, the exact same
+  buckets the scheduled notification sender delivers:
+
+  ```json
+  {"username": "astronaut1", "daily": [...], "weekly": [...], "monthly": [...]}
+  ```
 
 ## 7. Expected status codes
 

@@ -64,7 +64,7 @@ class NotificationSchedulerTest {
         user.getMeasurementLastTaken().put("beyond", NOW);
 
         scheduler = new NotificationScheduler(userData, reminderService, sender,
-                Clock.fixed(NOW, ZoneOffset.UTC));
+                Clock.fixed(NOW, ZoneOffset.UTC), true);
     }
 
     @Test
@@ -147,5 +147,22 @@ class NotificationSchedulerTest {
 
         // The second user still receives their digest.
         verify(sender).send(scheduler.buildDigest(other));
+    }
+
+    @Test
+    void disabledNotificationsSendNothingButDigestsStayBuildable() {
+        UserDocument other = new UserDocument("crewmate", "hash", "token");
+        when(userData.findAll()).thenReturn(List.of(user, other));
+
+        NotificationScheduler disabled = new NotificationScheduler(userData,
+                new UserReminderService(org.mockito.Mockito.mock(DataRetrievalService.class), 7,
+                        Clock.fixed(NOW, ZoneOffset.UTC)),
+                sender, Clock.fixed(NOW, ZoneOffset.UTC), false);
+
+        disabled.sendDailyDigests();
+
+        verify(sender, org.mockito.Mockito.never()).send(org.mockito.ArgumentMatchers.any());
+        // The digest logic itself stays available (e.g. for GET /users/digest).
+        assertEquals("astronaut", disabled.buildDigest(user).username());
     }
 }

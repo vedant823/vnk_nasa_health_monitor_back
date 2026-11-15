@@ -9,6 +9,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import org.vnk.healthmonitor.domain.dto.BaselineMode;
 
 /**
  * One user account: username, hashed password, and current token.
@@ -38,6 +39,9 @@ public class UserDocument {
 
     /** Measurement data, keyed by measurement ID. */
     private Map<String, List<MeasurementSet>> measurementHistory = new HashMap<>();
+
+    /** Raw baseline reading per measurement, keyed by measurement ID. */
+    private Map<String, Double> measurementBaselines = new HashMap<>();
 
     public UserDocument() {
     }
@@ -102,6 +106,44 @@ public class UserDocument {
 
     public void setMeasurementHistory(Map<String, List<MeasurementSet>> measurementHistory) {
         this.measurementHistory = measurementHistory;
+    }
+
+    public Map<String, Double> getMeasurementBaselines() {
+        return measurementBaselines;
+    }
+
+    public void setMeasurementBaselines(Map<String, Double> measurementBaselines) {
+        this.measurementBaselines = measurementBaselines;
+    }
+
+    public Double baselineOf(String measurementId) {
+        return measurementBaselines.get(measurementId);
+    }
+
+    /**
+     * Stores the first raw reading of a measurement as its baseline.
+     * Later readings never overwrite it, so the baseline stays the
+     * crew member's pre-flight (or first in-flight) reference value.
+     */
+    public void recordBaselineIfAbsent(String measurementId, double rawValue) {
+        measurementBaselines.putIfAbsent(measurementId, rawValue);
+    }
+
+    /**
+     * Converts a raw reading into its change from the user's baseline,
+     * or null when there is no usable baseline and the raw value must be
+     * used as-is (legacy data recorded before baselines existed).
+     */
+    public Double changeFromBaseline(String measurementId, double rawValue, BaselineMode mode) {
+        Double baseline = measurementBaselines.get(measurementId);
+        if (baseline == null || mode == BaselineMode.NONE || baseline == 0.0) {
+            return null;
+        }
+        return switch (mode) {
+            case PERCENT -> (rawValue - baseline) / Math.abs(baseline) * 100.0;
+            case DIFFERENCE -> rawValue - baseline;
+            case NONE -> null;
+        };
     }
 
     public List<MeasurementSet> historyOf(String measurementId) {

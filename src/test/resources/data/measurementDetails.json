@@ -27,6 +27,27 @@
       "unit": "test units",
       "abnormalHigh": 100.0,
       "canBeNegative": true
+    },
+    {
+      "id": "m4",
+      "name": "Percent From Baseline",
+      "type": "numerical",
+      "unit": "percent change from baseline",
+      "baselineMode": "percent",
+      "dangerousLow": -5.0,
+      "abnormalLow": -2.0,
+      "abnormalHigh": 3.0,
+      "dangerousHigh": 5.0,
+      "canBeNegative": true
+    },
+    {
+      "id": "m5",
+      "name": "Difference From Baseline",
+      "type": "numerical",
+      "unit": "units change from baseline",
+      "baselineMode": "difference",
+      "abnormalHigh": 20.0,
+      "canBeNegative": true
     }
   ]
 }

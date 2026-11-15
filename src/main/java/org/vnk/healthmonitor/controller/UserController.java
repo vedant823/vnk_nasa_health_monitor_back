@@ -1,13 +1,16 @@
 package org.vnk.healthmonitor.controller;
 
 import org.vnk.healthmonitor.domain.dto.LogMeasurementRequest;
+import org.vnk.healthmonitor.domain.dto.MeasurementTrend;
 import org.vnk.healthmonitor.domain.dto.Reminder;
+import org.vnk.healthmonitor.domain.dto.ReminderDigest;
 import org.vnk.healthmonitor.domain.dto.RiskEvaluation;
 import org.vnk.healthmonitor.domain.dto.UpdateFrequencyRequest;
 import org.vnk.healthmonitor.domain.document.MeasurementSet;
 import org.vnk.healthmonitor.domain.document.UserDocument;
 import org.vnk.healthmonitor.service.DataRetrievalService;
 import org.vnk.healthmonitor.service.JudgementService;
+import org.vnk.healthmonitor.service.NotificationScheduler;
 import org.vnk.healthmonitor.service.UserDataService;
 import org.vnk.healthmonitor.service.UserLoginService;
 import org.vnk.healthmonitor.service.UserReminderService;
@@ -34,17 +37,20 @@ public class UserController {
     private final UserReminderService userReminderService;
     private final JudgementService judgementService;
     private final DataRetrievalService dataRetrievalService;
+    private final NotificationScheduler notificationScheduler;
 
     public UserController(UserDataService userDataService,
                           UserLoginService userLoginService,
                           UserReminderService userReminderService,
                           JudgementService judgementService,
-                          DataRetrievalService dataRetrievalService) {
+                          DataRetrievalService dataRetrievalService,
+                          NotificationScheduler notificationScheduler) {
         this.userDataService = userDataService;
         this.userLoginService = userLoginService;
         this.userReminderService = userReminderService;
         this.judgementService = judgementService;
         this.dataRetrievalService = dataRetrievalService;
+        this.notificationScheduler = notificationScheduler;
     }
 
     /**
@@ -113,5 +119,27 @@ public class UserController {
             @PathVariable("riskID") String riskId) {
         UserDocument user = userLoginService.resolveUser(authorization);
         return judgementService.evaluate(user, dataRetrievalService.getRisk(riskId));
+    }
+
+    /**
+     * Returns the direction of a measurement's two most recent readings
+     * (up, down, or flat; null when there is not enough history).
+     */
+    @GetMapping("/users/measurements/{measurementID}/trend")
+    public MeasurementTrend getTrend(
+            @RequestHeader("Authorization") String authorization,
+            @PathVariable("measurementID") String measurementId) {
+        UserDocument user = userLoginService.resolveUser(authorization);
+        return userDataService.getTrend(user, measurementId);
+    }
+
+    /**
+     * Returns the user's daily/weekly/monthly reminder digest — the same
+     * buckets the scheduled notification sender uses.
+     */
+    @GetMapping("/users/digest")
+    public ReminderDigest getDigest(@RequestHeader("Authorization") String authorization) {
+        UserDocument user = userLoginService.resolveUser(authorization);
+        return notificationScheduler.buildDigest(user);
     }
 }

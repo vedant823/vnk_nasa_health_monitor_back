@@ -35,44 +35,61 @@
 
 * **Controllers**
   * **LoginController**
-    * Manages user logins (login credentials in body)
+    * Manages user logins (login credentials in body). Both endpoints take the same body and return the token as a raw JSON string, which the client then sends as `Authorization: Bearer <token>` on every user endpoint.
     * `POST /users/login`
-      * Creates a new account, returning the token
-      * Outputs `String`
+      * Creates a new account with the given credentials, initializes every measurement's reminder frequency to the default (7 days), and returns the new account's token. Fails with 409 if the username is already taken.
+      * Body: `username` (string, required), `password` (string, required)
+      * Outputs `String` — the token
     * `GET /users/login`
-      * Gets the token for an account
-      * Outputs `String`
+      * Verifies the credentials and returns the existing account's token, so logging in on another device returns the same token. Fails with 401 for wrong credentials. (GET with a body: browsers cannot send it, the Hoppscotch desktop app can.)
+      * Body: `username` (string, required), `password` (string, required)
+      * Outputs `String` — the token
   * **UserController**
-    * Manages user data, reminders, and risks (token passed as an `Authorization: Bearer <token>` header)
+    * Manages user data, reminders, and risks. Every endpoint requires `Authorization: Bearer <token>`; a missing header is 400 and an invalid token is 401.
     * `GET /users/measurements/{measurementID}`
-      * Gets the user’s measurements from the database
-      * Outputs `List<MeasurementSet>`
+      * Returns the user's logged history for one measurement, newest first. Values of baseline-relative measurements are served as the change from the user's baseline (percent or plain difference per `baselineMode`); absolute measurements are returned raw.
+      * Path: `measurementID` — a measurement ID from the data endpoints
+      * Outputs `List<MeasurementSet>` — each `{measurementId, userId, timestamp, values[] | images[]}` (exactly one of values/images, per the measurement's category)
     * `POST /users/measurements/{measurementID}`
-      * Logs the user’s measurements in the database
-      * Outputs `Unit` (Nothing)
+      * Logs one reading as a `MeasurementSet` and updates the measurement's last-taken time, which drives reminders and risk scoring. The first logged reading of a baseline-relative measurement becomes the user's baseline; later readings are stored raw and converted on the way out.
+      * Body: `values` (list of numbers, required for numerical measurements — finite, and non-negative unless the measurement `canBeNegative`) or `image` (base64 string, required for visual measurements)
+      * Outputs nothing (empty 200 body). Errors: 404 unknown measurement, 400 missing or invalid values/image
     * `PUT /users/measurements/{measurementID}/frequency`
-      * Updates the reminder frequency (days between measurements) for one measurement
-      * Outputs `Unit` (Nothing)
+      * Sets how many days pass between reminders for one measurement (the frontend's frequency dropdown). The next due date becomes last-taken plus this many days.
+      * Body: `frequencyDays` (integer, minimum 1)
+      * Outputs nothing (empty 200 body). Errors: 404 unknown measurement, 400 invalid frequency
     * `GET /users/upcoming`
-      * Outputs a list of the upcoming measurements the user needs to take in a time period, ordered by date to be taken.
-      * Outputs `List<Reminder>`
+      * Lists every measurement due within the given window, ordered by due date. A measurement is due when `lastTaken + frequencyDays` has passed, or immediately if never taken — so a fresh account's list is the complete baseline checklist.
+      * Query: `withinDays` (integer, optional, default 30)
+      * Outputs `List<Reminder>` — each `{measurementId, dueDate}`, dueDate ascending
     * `GET /users/risks`
-      * Returns all of a user’s risk scores
-      * Outputs `List<RiskEvaluation>`
+      * Scores every risk factor for the user with the rule-based `JudgementService` (start at 100; −40 per abnormal and −75 per dangerous latest reading, stacked, floored at 1). Risks without measurements yet always score 100.
+      * Outputs `List<RiskEvaluation>` — each `{riskId, score, advice[], reason}`
     * `GET /users/risks/{riskID}`
-      * Returns a user’s risk score, trends, and advices
-      * Outputs `RiskEvaluation`
+      * Returns one risk's score, the advice list (the recommendation string of every violated measurement, most severe first), and a reason string describing each violation.
+      * Path: `riskID` — a risk ID from `GET /data/risks`
+      * Outputs `RiskEvaluation` — `{riskId, score, advice[], reason}`. Errors: 404 unknown risk
+    * `GET /users/measurements/{measurementID}/trend`
+      * Compares the measurement's two most recent baseline-adjusted readings and returns their direction — a lightweight hint for the frontend graphs, no statistical modelling. `up` and `down` are raw directions; whether that is good or bad depends on the measurement.
+      * Outputs `MeasurementTrend` — `{measurementId, direction}`, direction `"up"`, `"down"`, `"flat"` (within 0.5%), or `null` with fewer than two readings
+    * `GET /users/digest`
+      * Returns the user's daily/weekly/monthly reminder digest — the exact buckets the scheduled notification sender delivers, built from one 30-day snapshot so the buckets nest (daily inside weekly inside monthly). Lets the frontend's reminders screen show precisely what the notifications say.
+      * Outputs `ReminderDigest` — `{username, daily[], weekly[], monthly[]}`, each bucket a list of `Reminder`
   * **DataController**
-    * Serves measurement instructions as well as risk overviews
+    * Serves measurement instructions as well as risk overviews. No authentication: this is the same static content for every user.
     * `GET /data/measurements/{measurementID}`
-      * Returns a measurement’s instructions
-      * Outputs `Measurement`
+      * Returns one measurement's full definition: display name, category, unit, guideline bounds (optional per side), baseline mode, the low/high recommendation strings, and the step-by-step instructions. Merged at startup from `measurementDetails.json` and `measurementInstructions.json`.
+      * Outputs `Measurement` — `{id, name, category, unit, dangerousLow?, abnormalLow?, abnormalHigh?, dangerousHigh?, canBeNegative, baselineMode, lowRecommendation?, highRecommendation?, instructions[]}`, each instruction `{image, text}`. Errors: 404 unknown measurement
     * `GET /data/risks/{riskID}`
-      * Returns a risk’s children measurements and its justification
-      * Outputs `RiskFactor`
+      * Returns one risk's display name, category, the reason to pay attention to it, and its child measurement IDs (empty for risks with no usable data yet).
+      * Outputs `RiskFactor` — `{id, name, category, measurementIds[], reason}`. Errors: 404 unknown risk
     * `GET /data/risks`
-      * Returns all risk factors, so the frontend hardcodes nothing
+      * Returns every risk factor in file order, so the frontend's home grid hardcodes nothing.
       * Outputs `List<RiskFactor>`
+  * **Notes on output shapes (deliberate evolutions, justified):**
+    * `RiskEvaluation.advice` is a `List<String>`, not a single string: several measurements can be abnormal at once, each with its own recommendation string (the `JudgementService` spec text already describes the advice as "a list", ordered most severe first).
+    * `Measurement` and `RiskFactor` carry the display name, unit, guideline bounds, and baseline mode from `measurementDetails.json`/`riskInfo.json`, per the addendum's merge and the "the frontend hardcodes nothing" principle.
+    * History values of baseline-relative measurements are served as the change from the user's baseline (percent or difference per `baselineMode`), matching the units the spec defines for those measurements; absolute measurements are unchanged.
 * **Services**
   * **UserDataService**
     * Stores and retrieves user data from the repository (Makes sure to update measurement dates when logging one)
@@ -107,7 +124,7 @@
     * `MeasurementSet`
       * Contains a list / array of numbers or images along with the user ID it is associated with and the Measurement ID it corresponds to
     * `RiskEvaluation`
-      * Contains a string ID correlating it to a risk factor as well as an integer score, a string suggesting how to improve the score, and an optional string describing the reason for the score
+      * Contains a string ID correlating it to a risk factor as well as an integer score, a list of strings suggesting how to improve the score (one per abnormal measurement, most severe first), and an optional string describing the reason for the score
     * `Reminder`
       * Contains a measurement ID and a date/time.
 * **Other**
@@ -136,23 +153,23 @@
 * **CORS & Hoppscotch:** `app.cors.allowed-origins` includes the React dev server and `https://hoppscotch.io`, so Hoppscotch (web or desktop) can call the API. `GET /users/login` keeps its credentials body, which the Hoppscotch desktop app can send (browsers cannot send GET bodies). A full request-by-request walkthrough lives in `docs/api-testing.md`.
 * **Testing:** Two-layer suite. Unit tests (plain JUnit + Mockito; services with mocked dependencies and a fixed `Clock`, controllers via standalone MockMvc with mocked services) run with `./gradlew test` and need no external services. Functional tests (tagged `functional`, `@SpringBootTest(RANDOM_PORT)` driving the fully booted app over real HTTP against the Dockerized MongoDB in the dedicated `healthmonitor-functional` database) run with `./gradlew functionalTest` after `docker-compose up -d`; they cover the complete user journey, auth and error paths (missing header → 400, invalid token → 401, unknown IDs → 404, duplicate username → 409, validation errors → 400), the data endpoints, CORS preflight/actual requests for the Hoppscotch origin, and the notification digests.
 * **Package layout:** `controller/`, `service/`, `repository/`, `domain/{dto,document}/`, `config/` (CORS + error handling + Clock + scheduling).
-* **Status:** All spec classes exist; controllers are wired to services; service logic is implemented as described above. Controllers remain pure delegation. The daily/weekly/monthly reminder notifications (the spec's headline requirement) are implemented and tested; the test suite (68 unit + 23 functional tests) is green.
+* **Status:** All spec classes exist; controllers are wired to services; service logic is implemented as described above. Controllers remain pure delegation. The daily/weekly/monthly reminder notifications (the spec's headline requirement) are implemented and tested; the test suite (90 unit + 29 functional tests) is green.
 
 ---
 
 ## Future steps
 
 ### Backend
-1. **User baselines** — several measurements are expressed as "percent change from pre-flight/baseline"; store baseline values on the user document and convert raw readings server-side instead of requiring pre-computed change values.
+1. ~~**User baselines**~~ — **Delivered.** Baseline-relative measurements (`baselineMode: percent|difference` in `measurementDetails.json`) now take plain raw values; the first logged reading is stored on the user document as the baseline and every reading is converted server-side before scoring and before serving history.
 2. **Visual measurement scoring** — replace the neutral placeholder for visual measurements (e.g. `oct_fundus_scan`) with real analysis, or a manual score-entry path for the Crew Medical Officer.
 3. **Image storage** — visual `MeasurementSet` images are base64 in MongoDB documents; move to GridFS or object storage before real use (16 MB document limit).
 4. **Per-measurement weights** — add an optional `weight` per measurement in `riskInfo.json` so some measurements count more toward a risk's score.
-5. **Trend hints** — lightweight last-vs-previous direction indicator per measurement (no statistical modelling) for the frontend graphs.
+5. ~~**Trend hints**~~ — **Delivered.** `GET /users/measurements/{measurementID}/trend` returns the direction (`up`/`down`/`flat`/null) of the two most recent baseline-adjusted readings.
 6. **Token hardening** — token rotation on login, logout/invalidation endpoint, and possibly signed JWTs if more structure is needed.
-7. **Notification delivery & scheduling coverage** — replace `LoggingNotificationSender` with a real push/email channel behind the same `NotificationSender` interface, and cover the `@Scheduled` trigger itself (currently only smoke-tested; the digest logic is fully unit-tested).
+7. **Notification delivery** — replace `LoggingNotificationSender` with a real push/email channel behind the same `NotificationSender` interface. (The `@Scheduled` trigger itself is now covered by a functional test that boots the app with a one-second cron and a counting sender.)
 8. **API documentation & ops** — OpenAPI/Swagger UI, Actuator health endpoints, and a production deployment story (containerized app + MongoDB Atlas or a managed Mongo).
 
-*(Delivered since the original list: the two-layer test suite — unit tests for `UserReminderService`, `JudgementService`, `UserLoginService`, `DataRetrievalService`, `NotificationScheduler`, and controller tests, plus functional tests over real HTTP against the Dockerized Mongo — and the scheduled daily/weekly/monthly notifications via `NotificationSender`/`NotificationScheduler`.)*
+*(Delivered since the original list: the two-layer test suite — unit tests for `UserReminderService`, `JudgementService`, `UserLoginService`, `DataRetrievalService`, `UserDataService`, `NotificationScheduler`, and controller tests, plus functional tests over real HTTP against the Dockerized Mongo — and the scheduled daily/weekly/monthly notifications via `NotificationSender`/`NotificationScheduler`. Also delivered since: user baselines with server-side raw-to-change conversion, the per-measurement trend endpoint, and `GET /users/digest`, which serves the exact buckets the scheduled sender delivers over HTTP.)*
 
 ### Frontend (React)
 1. **Screens** — login, home (risk grid + measurement list), reminders (day/week/month), risk detail, measurement overview (graph + frequency dropdown), and measurement performance (instructions + input) screens, all parameterized by backend IDs.

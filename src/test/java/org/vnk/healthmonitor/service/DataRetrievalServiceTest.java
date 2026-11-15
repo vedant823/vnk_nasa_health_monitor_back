@@ -3,6 +3,7 @@ package org.vnk.healthmonitor.service;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.server.ResponseStatusException;
+import org.vnk.healthmonitor.domain.dto.BaselineMode;
 
 import java.nio.file.Path;
 import java.util.List;
@@ -97,7 +98,16 @@ class DataRetrievalServiceTest {
     void listsAllMeasurementIds() {
         DataRetrievalService service = serviceFor("data");
 
-        assertEquals(List.of("m1", "m2", "m3"), service.getMeasurementIds());
+        assertEquals(List.of("m1", "m2", "m3", "m4", "m5"), service.getMeasurementIds());
+    }
+
+    @Test
+    void baselineModeDefaultsToNoneAndParsesValues() {
+        DataRetrievalService service = serviceFor("data");
+
+        assertEquals(BaselineMode.NONE, service.getMeasurement("m1").baselineMode());
+        assertEquals(BaselineMode.PERCENT, service.getMeasurement("m4").baselineMode());
+        assertEquals(BaselineMode.DIFFERENCE, service.getMeasurement("m5").baselineMode());
     }
 
     @Test

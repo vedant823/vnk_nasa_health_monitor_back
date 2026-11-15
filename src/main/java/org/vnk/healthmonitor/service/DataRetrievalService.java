@@ -1,6 +1,7 @@
 package org.vnk.healthmonitor.service;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import org.vnk.healthmonitor.domain.dto.BaselineMode;
 import org.vnk.healthmonitor.domain.dto.Instruction;
 import org.vnk.healthmonitor.domain.dto.Measurement;
 import org.vnk.healthmonitor.domain.dto.MeasurementCategory;
@@ -51,6 +52,7 @@ public class DataRetrievalService {
             Double abnormalHigh,
             Double dangerousHigh,
             Boolean canBeNegative,
+            String baselineMode,
             String lowRecommendation,
             String highRecommendation) {
     }
@@ -101,6 +103,9 @@ public class DataRetrievalService {
                         raw.abnormalHigh(),
                         raw.dangerousHigh(),
                         raw.canBeNegative() != null && raw.canBeNegative(),
+                        raw.baselineMode() == null
+                                ? BaselineMode.NONE
+                                : BaselineMode.from(raw.baselineMode()),
                         raw.lowRecommendation(),
                         raw.highRecommendation(),
                         instructionsById.get(raw.id())));

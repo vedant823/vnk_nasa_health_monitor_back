@@ -2,7 +2,6 @@ package org.vnk.healthmonitor.service;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 import org.vnk.healthmonitor.domain.dto.Reminder;
@@ -21,11 +20,11 @@ import java.util.List;
  * {@link UserReminderService#getUpcoming} with different windows, so the
  * due-date math lives in exactly one place.
  *
- * Gated by {@code app.notifications.enabled} so tests (or deployments)
- * can turn notifications off without touching code.
+ * The bean always exists so the digest stays servable over HTTP
+ * (GET /users/digest) even when notifications are off;
+ * {@code app.notifications.enabled} gates only the scheduled sending.
  */
 @Component
-@ConditionalOnProperty(name = "app.notifications.enabled", havingValue = "true")
 public class NotificationScheduler {
 
     static final int DAILY_WINDOW_DAYS = 1;
@@ -37,15 +36,18 @@ public class NotificationScheduler {
     private final UserReminderService userReminderService;
     private final NotificationSender sender;
     private final Clock clock;
+    private final boolean notificationsEnabled;
 
     public NotificationScheduler(UserData userData,
                                  UserReminderService userReminderService,
                                  NotificationSender sender,
-                                 Clock clock) {
+                                 Clock clock,
+                                 @org.springframework.beans.factory.annotation.Value("${app.notifications.enabled:true}") boolean notificationsEnabled) {
         this.userData = userData;
         this.userReminderService = userReminderService;
         this.sender = sender;
         this.clock = clock;
+        this.notificationsEnabled = notificationsEnabled;
     }
 
     /**
@@ -73,11 +75,14 @@ public class NotificationScheduler {
     }
 
     /**
-     * Sends every user their digest. A failure sending to one user must
-     * not stop the others.
+     * Sends every user their digest when notifications are enabled. A
+     * failure sending to one user must not stop the others.
      */
     @Scheduled(cron = "${app.notifications.cron}")
     public void sendDailyDigests() {
+        if (!notificationsEnabled) {
+            return;
+        }
         for (UserDocument user : userData.findAll()) {
             try {
                 sender.send(buildDigest(user));

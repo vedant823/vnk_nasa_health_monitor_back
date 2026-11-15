@@ -10,6 +10,7 @@ import org.vnk.healthmonitor.domain.document.MeasurementSet;
 import org.vnk.healthmonitor.domain.document.UserDocument;
 import org.vnk.healthmonitor.service.DataRetrievalService;
 import org.vnk.healthmonitor.service.JudgementService;
+import org.vnk.healthmonitor.service.NotificationScheduler;
 import org.vnk.healthmonitor.service.UserDataService;
 import org.vnk.healthmonitor.service.UserLoginService;
 import org.vnk.healthmonitor.service.UserReminderService;
@@ -45,6 +46,7 @@ class UserControllerTest {
     private UserReminderService userReminderService;
     private JudgementService judgementService;
     private DataRetrievalService dataRetrievalService;
+    private NotificationScheduler notificationScheduler;
     private UserDocument user;
     private MockMvc mockMvc;
 
@@ -55,11 +57,12 @@ class UserControllerTest {
         userReminderService = mock(UserReminderService.class);
         judgementService = mock(JudgementService.class);
         dataRetrievalService = mock(DataRetrievalService.class);
+        notificationScheduler = mock(NotificationScheduler.class);
         user = new UserDocument("alice", "hash", "token-123");
         when(userLoginService.resolveUser(BEARER)).thenReturn(user);
         mockMvc = MockMvcBuilders.standaloneSetup(new UserController(
                 userDataService, userLoginService, userReminderService,
-                judgementService, dataRetrievalService)).build();
+                judgementService, dataRetrievalService, notificationScheduler)).build();
     }
 
     @Test
@@ -160,5 +163,36 @@ class UserControllerTest {
                 .andExpect(jsonPath("$.advice[0]").value("advice"));
 
         verify(judgementService).evaluate(user, risk);
+    }
+
+    @Test
+    void getTrendDelegatesWithMeasurementId() throws Exception {
+        when(userDataService.getTrend(user, "m1")).thenReturn(
+                new org.vnk.healthmonitor.domain.dto.MeasurementTrend("m1",
+                        org.vnk.healthmonitor.domain.dto.TrendDirection.DOWN));
+
+        mockMvc.perform(get("/users/measurements/m1/trend").header(AUTH, BEARER))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.measurementId").value("m1"))
+                .andExpect(jsonPath("$.direction").value("down"));
+
+        verify(userDataService).getTrend(user, "m1");
+    }
+
+    @Test
+    void getDigestDelegatesToTheScheduler() throws Exception {
+        org.vnk.healthmonitor.domain.dto.ReminderDigest digest =
+                new org.vnk.healthmonitor.domain.dto.ReminderDigest(
+                        "alice", List.of(), List.of(), List.of());
+        when(notificationScheduler.buildDigest(user)).thenReturn(digest);
+
+        mockMvc.perform(get("/users/digest").header(AUTH, BEARER))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.username").value("alice"))
+                .andExpect(jsonPath("$.daily", hasSize(0)))
+                .andExpect(jsonPath("$.weekly", hasSize(0)))
+                .andExpect(jsonPath("$.monthly", hasSize(0)));
+
+        verify(notificationScheduler).buildDigest(user);
     }
 }

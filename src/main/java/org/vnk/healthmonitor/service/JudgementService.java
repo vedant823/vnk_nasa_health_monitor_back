@@ -19,7 +19,8 @@ import java.util.List;
  * (abnormal -40, dangerous -75, stacked, floored at 1). The
  * recommendation string of every abnormal measurement is collected into
  * the advice, most severe first. Visual measurements are excluded from
- * scoring.
+ * scoring. Measurements expressed relative to a baseline are converted
+ * from raw readings to their change from the user's baseline first.
  */
 @Service
 public class JudgementService {
@@ -56,7 +57,10 @@ public class JudgementService {
             if (history.isEmpty()) {
                 continue;
             }
-            double value = average(history.get(history.size() - 1).getValues());
+            MeasurementSet latest = history.get(history.size() - 1);
+            double raw = average(latest.getValues());
+            Double change = user.changeFromBaseline(measurementId, raw, measurement.baselineMode());
+            double value = change != null ? change : raw;
             Band band = classify(value, measurement);
             if (band == Band.NORMAL) {
                 continue;
