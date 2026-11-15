@@ -102,6 +102,10 @@ the old `spring.data.mongodb.uri` key is deprecated at error level and silently 
 | `app.defaults.measurement-frequency-days` | `7` | Reminder frequency for new accounts |
 | `app.notifications.enabled` | `true` | Gates the scheduled digest *sending* only |
 | `app.notifications.cron` | `0 0 8 * * *` | When the daily digests go out |
+| `app.images.max-dimension` | `1024` | Longest side (px) a stored measurement image is downscaled to |
+| `app.images.quality` / `quality-floor` | `0.7` / `0.3` | JPEG quality start / floor of the compression ladder |
+| `app.images.max-stored-bytes` | `262144` | Size cap (bytes) per stored image |
+| `app.images.max-upload-bytes` | `16777216` | Upload ceiling (16 MB); larger uploads are rejected |
 
 ## Project layout
 
@@ -124,8 +128,10 @@ docs/              # full spec + Hoppscotch walkthrough
 - Instruction images referenced by `measurementInstructions.json`.
 - Several risks (hypoxia/CO₂, decompression sickness, EVA injury, …) have no measurements
   yet and always score 100.
-- Image storage: visual measurements are base64 in documents (16 MB limit) — GridFS before
-  real use.
+- Image storage: uploads are downscaled to ≤1024 px JPEG (≤256 KB) server-side before
+  storage, so visual histories fit the 16 MB document limit — but originals are not
+  kept; GridFS or object storage is still the path if full-resolution images are
+  ever needed.
 
 The full design, the implementation addendum, and the tracked future-steps list are in
 [`docs/space_apps_health_monitoring_design_spec.md`](docs/space_apps_health_monitoring_design_spec.md).

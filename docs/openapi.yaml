@@ -555,7 +555,12 @@ components:
             type: number
         image:
           type: string
-          description: Required for visual measurements (base64-encoded)
+          description: >
+            Required for visual measurements (base64-encoded, with or without a
+            `data:image/...;base64,` prefix). Must be a decodable JPEG/PNG/BMP up
+            to 16 MB. The server downscales it to at most 1024 px on the longest
+            side and re-encodes it as a compressed JPEG before storage, so the
+            stored value may differ from the upload.
     UpdateFrequencyRequest:
       type: object
       required: [frequencyDays]

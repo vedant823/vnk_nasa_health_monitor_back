@@ -39,6 +39,7 @@ class UserDataServiceTest {
 
     private UserData userData;
     private DataRetrievalService dataRetrievalService;
+    private ImageCompressionService imageCompressionService;
     private UserDataService userDataService;
     private UserDocument user;
 
@@ -46,8 +47,9 @@ class UserDataServiceTest {
     void setUp() {
         userData = mock(UserData.class);
         dataRetrievalService = mock(DataRetrievalService.class);
+        imageCompressionService = mock(ImageCompressionService.class);
         userDataService = new UserDataService(userData, dataRetrievalService,
-                Clock.fixed(NOW, ZoneOffset.UTC));
+                imageCompressionService, Clock.fixed(NOW, ZoneOffset.UTC));
         user = new UserDocument("astronaut", "hash", "token");
     }
 
@@ -179,6 +181,19 @@ class UserDataServiceTest {
                 () -> userDataService.logMeasurement(user, "oct", new LogMeasurementRequest(null, "  ")));
 
         assertEquals(HttpStatus.BAD_REQUEST, e.getStatusCode());
+    }
+
+    @Test
+    void visualImagesAreCompressedBeforeStorage() {
+        givenMeasurement(new Measurement("oct", "oct", MeasurementCategory.VISUAL, null,
+                uniformRanges(null, null, null, null), false, BaselineMode.NONE, null, null, List.of()));
+        when(imageCompressionService.compress("raw-base64")).thenReturn("compressed-base64");
+
+        userDataService.logMeasurement(user, "oct", new LogMeasurementRequest(null, "raw-base64"));
+
+        List<MeasurementSet> stored = user.getMeasurementHistory().get("oct");
+        assertEquals(List.of("compressed-base64"), stored.get(0).getImages());
+        verify(imageCompressionService).compress("raw-base64");
     }
 
     @Test

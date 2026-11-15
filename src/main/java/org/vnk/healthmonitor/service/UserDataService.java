@@ -37,11 +37,14 @@ public class UserDataService {
 
     private final UserData userData;
     private final DataRetrievalService dataRetrievalService;
+    private final ImageCompressionService imageCompressionService;
     private final Clock clock;
 
-    public UserDataService(UserData userData, DataRetrievalService dataRetrievalService, Clock clock) {
+    public UserDataService(UserData userData, DataRetrievalService dataRetrievalService,
+                           ImageCompressionService imageCompressionService, Clock clock) {
         this.userData = userData;
         this.dataRetrievalService = dataRetrievalService;
+        this.imageCompressionService = imageCompressionService;
         this.clock = clock;
     }
 
@@ -113,7 +116,10 @@ public class UserDataService {
                     throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
                             "Visual measurement requires an 'image'");
                 }
-                images = List.of(request.image());
+                // The upload is compressed server-side (downscaled JPEG),
+                // so a history of scans stays well under MongoDB's 16 MB
+                // document limit.
+                images = List.of(imageCompressionService.compress(request.image()));
             }
         }
 

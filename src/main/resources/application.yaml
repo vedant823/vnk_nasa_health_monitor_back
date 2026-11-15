@@ -16,6 +16,12 @@ app:
     allowed-origins: http://localhost:5173,https://hoppscotch.io
   defaults:
     measurement-frequency-days: 7
+  images:
+    max-dimension: 1024
+    quality: 0.7
+    quality-floor: 0.3
+    max-stored-bytes: 262144
+    max-upload-bytes: 16777216
   notifications:
     enabled: true
     cron: "0 0 8 * * *"

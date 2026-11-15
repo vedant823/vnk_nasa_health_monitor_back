@@ -10,10 +10,14 @@ import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import tools.jackson.databind.ObjectMapper;
 
+import javax.imageio.ImageIO;
+import java.awt.image.BufferedImage;
+import java.io.ByteArrayOutputStream;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.util.Base64;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
@@ -163,6 +167,25 @@ public abstract class FunctionalTestBase {
                 "{\"username\":\"" + username + "\",\"password\":\"secret\"}");
         assertEquals(200, response.statusCode(), "Account creation failed: " + response.body());
         return parseToken(response.body());
+    }
+
+    /**
+     * A real (1x1) PNG generated in-JVM, so visual measurement logs pass
+     * the server's image validation — arbitrary base64 text no longer
+     * does, since uploads are decoded and compressed before storage.
+     */
+    static final String TINY_PNG = createTinyPng();
+
+    private static String createTinyPng() {
+        BufferedImage image = new BufferedImage(1, 1, BufferedImage.TYPE_INT_RGB);
+        image.setRGB(0, 0, 0xFFFFFF);
+        try {
+            ByteArrayOutputStream out = new ByteArrayOutputStream();
+            ImageIO.write(image, "png", out);
+            return Base64.getEncoder().encodeToString(out.toByteArray());
+        } catch (Exception e) {
+            throw new IllegalStateException("Could not generate the test PNG", e);
+        }
     }
 
     String parseToken(String body) {

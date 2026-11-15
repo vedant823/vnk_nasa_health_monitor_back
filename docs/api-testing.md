@@ -85,7 +85,11 @@ Use the IDs from these responses in the URLs below — nothing needs to be hardc
   {"values": [5200.0]}
   ```
 
-  Visual measurements instead take `{"image": "<base64>"}`.
+  Visual measurements instead take `{"image": "<base64>"}` — a real JPEG/PNG/BMP
+  (with or without a `data:image/...;base64,` prefix), up to 16 MB. The server
+  downscales it to at most 1024 px on the longest side and re-encodes it as a
+  compressed JPEG before storing it, so a history of scans stays well under
+  MongoDB's 16 MB document limit. Arbitrary base64 text is rejected with 400.
 * `GET /users/measurements/white_blood_cells` — the logged history, newest first.
 
   Baseline-relative measurements (`body_mass_change`, `grip_strength_change`,
@@ -159,3 +163,4 @@ Use the IDs from these responses in the URLs below — nothing needs to be hardc
 | Unknown `newEnvironment`           | 400  |
 | Duplicate username on creation     | 409  |
 | Validation error (e.g. `frequencyDays: 0`) | 400 |
+| Undecodable or over-limit measurement image | 400 |

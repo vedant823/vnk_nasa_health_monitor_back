@@ -32,7 +32,7 @@ class VisualScoringFunctionalTest extends FunctionalTestBase {
 
         // 2. A visual measurement is logged with an image (base64).
         HttpResponse<String> log = send("POST", "/users/measurements/" + VISUAL,
-                "{\"image\":\"aGVsbG8=\"}", authHeader(token));
+                "{\"image\":\"" + TINY_PNG + "\"}", authHeader(token));
         assertEquals(200, log.statusCode());
 
         // 3. An unreviewed visual reading is noted but not penalized.
@@ -94,7 +94,7 @@ class VisualScoringFunctionalTest extends FunctionalTestBase {
 
         // A negative abnormality count is invalid.
         HttpResponse<String> log = send("POST", "/users/measurements/" + VISUAL,
-                "{\"image\":\"aGVsbG8=\"}", authHeader(token));
+                "{\"image\":\"" + TINY_PNG + "\"}", authHeader(token));
         assertEquals(200, log.statusCode());
         assertEquals(400, send("PUT", "/users/measurements/" + VISUAL + "/score?numAbnormal=-1",
                 null, authHeader(token)).statusCode());
@@ -116,9 +116,9 @@ class VisualScoringFunctionalTest extends FunctionalTestBase {
 
         // Two readings; the second (older) one is scored through its index.
         assertEquals(200, send("POST", "/users/measurements/" + VISUAL,
-                "{\"image\":\"aGk=\"}", authHeader(token)).statusCode());
+                "{\"image\":\"" + TINY_PNG + "\"}", authHeader(token)).statusCode());
         assertEquals(200, send("POST", "/users/measurements/" + VISUAL,
-                "{\"image\":\"eW8=\"}", authHeader(token)).statusCode());
+                "{\"image\":\"" + TINY_PNG + "\"}", authHeader(token)).statusCode());
 
         assertEquals(200, send("PUT", "/users/measurements/" + VISUAL
                 + "/score?numAbnormal=1&measurementIndex=1", null, authHeader(token)).statusCode());
