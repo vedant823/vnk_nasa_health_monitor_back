@@ -1,0 +1,14 @@
+# Keep the build context small; jsonData must NOT be excluded (runtime data)
+.git
+.gradle
+.idea
+build
+docs
+out
+*.iml
+.DS_Store
+.gitattributes
+.gitignore
+docker-compose.yml
+Dockerfile
+.dockerignore

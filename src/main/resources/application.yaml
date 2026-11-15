@@ -13,7 +13,7 @@ spring:
 app:
   data-dir: jsonData
   cors:
-    allowed-origins: http://localhost:5173,https://hoppscotch.io
+    allowed-origins: http://localhost:5173,https://hoppscotch.io,https://vnk-hems.vercel.app,https://*-vnk-hems.vercel.app
   defaults:
     measurement-frequency-days: 7
   images:
