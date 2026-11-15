@@ -104,12 +104,13 @@ Use the IDs from these responses in the URLs below — nothing needs to be hardc
   also clears the baseline so a re-log starts a fresh one.
 * `GET /users/upcoming?withinDays=30` — reminders due in the next N days, ordered by due date
 * `GET /users/badges` — every badge, split into earned definitions and unearned
-  ones with progress. Each unearned badge carries one progress fraction
-  (0.0–1.0) per criterion — e.g. `{"badge": {"title": "Week Streak", ...},
-  "progress": [0.29]}` means 2 of the 7 consecutive days are done:
+  ones with progress. Each badge carries its `description`; each unearned badge
+  also carries one progress fraction (0.0–1.0) per criterion — e.g.
+  `{"badge": {"title": "Week Streak", "description": "..."}, "progress": [0.29]}`
+  means 2 of the 7 consecutive days are done:
 
   ```json
-  {"earned": [{"title": "First Check-in", "criteria": [...]}],
+  {"earned": [{"title": "First Check-in", "description": "Log any measurement once.", "criteria": [...]}],
    "unearned": [{"badge": {...}, "progress": [0.0, 0.5]}]}
   ```
 

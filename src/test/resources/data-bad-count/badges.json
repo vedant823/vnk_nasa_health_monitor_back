@@ -2,6 +2,7 @@
   "badges": [
     {
       "title": "Zero Count",
+      "description": "Has an impossible count.",
       "criteria": [
         {
           "measurementType": ["m1"],

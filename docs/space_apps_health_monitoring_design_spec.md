@@ -127,7 +127,7 @@
     * `Instruction`
       * Contains an image reference and text.
     * `Badge`
-      * Contains a badge's title and criteria that must be fulfilled to earn it.
+      * Contains a badge's title, a description of how to earn it, and criteria that must be fulfilled to earn it.
     * `Criterion`
       * Contains a criterion's set of valid measurements and some booleans dictating its behavior as well as an integer specifying its length.
   * **Non-static classes:**
@@ -155,7 +155,7 @@
     * `measurementDetails.json`
       * Contains each measurement’s display name, type (numerical, visual), unit, and for numerical values: upper and lower bounds around abnormal and dangerous levels (4 doubles, each optional — a missing side does not apply), a boolean indicating whether it can be negative, and 2 optional recommendation strings for an unusually low and high number.
     * `badges.json`
-      * Contains each badge and its nested criteria: Each badge has a title and list of criteria, each criterion has a set of valid measurements, some booleans dictating its behavior, and an integer dictating its length.
+      * Contains each badge and its nested criteria: Each badge has a title, a description string explaining how to earn it, and a list of criteria; each criterion has a set of valid measurements, some booleans dictating its behavior, and an integer dictating its length.
 
 ---
 

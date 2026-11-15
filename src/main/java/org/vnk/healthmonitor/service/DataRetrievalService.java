@@ -148,6 +148,9 @@ public class DataRetrievalService {
             if (badge.title() == null || badge.title().isBlank()) {
                 throw new IllegalStateException("Badge without a title in badges.json");
             }
+            if (badge.description() == null || badge.description().isBlank()) {
+                throw new IllegalStateException("Badge " + badge.title() + " has no description");
+            }
             for (Criterion criterion : badge.criteria()) {
                 if (criterion.count() < 1) {
                     throw new IllegalStateException("Badge " + badge.title()

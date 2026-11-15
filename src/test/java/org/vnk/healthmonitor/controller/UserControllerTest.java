@@ -222,19 +222,22 @@ class UserControllerTest {
     @Test
     void getBadgesDelegatesToTheBadgeService() throws Exception {
         org.vnk.healthmonitor.domain.dto.Badge badge =
-                new org.vnk.healthmonitor.domain.dto.Badge("First Check-in", List.of());
+                new org.vnk.healthmonitor.domain.dto.Badge(
+                        "First Check-in", "Log any measurement once.", List.of());
         when(badgeService.evaluate(user)).thenReturn(new org.vnk.healthmonitor.domain.dto.BadgeSet(
                 List.of(badge),
                 List.of(new org.vnk.healthmonitor.domain.dto.BadgeStatus(
-                        new org.vnk.healthmonitor.domain.dto.Badge("Week Streak", List.of()),
+                        new org.vnk.healthmonitor.domain.dto.Badge("Week Streak", "Log a measurement every day for a week.", List.of()),
                         List.of(0.0)))));
 
         mockMvc.perform(get("/users/badges").header(AUTH, BEARER))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.earned", hasSize(1)))
                 .andExpect(jsonPath("$.earned[0].title").value("First Check-in"))
+                .andExpect(jsonPath("$.earned[0].description").value("Log any measurement once."))
                 .andExpect(jsonPath("$.unearned", hasSize(1)))
                 .andExpect(jsonPath("$.unearned[0].badge.title").value("Week Streak"))
+                .andExpect(jsonPath("$.unearned[0].badge.description").value("Log a measurement every day for a week."))
                 .andExpect(jsonPath("$.unearned[0].progress[0]").value(0.0));
 
         verify(badgeService).evaluate(user);

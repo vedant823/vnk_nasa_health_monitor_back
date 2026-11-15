@@ -2,6 +2,7 @@
   "badges": [
     {
       "title": "First Check-in",
+      "description": "Log any measurement once.",
       "criteria": [
         {
           "measurementType": [
@@ -30,6 +31,7 @@
     },
     {
       "title": "Week Streak",
+      "description": "Log at least one measurement a day for 7 days in a row.",
       "criteria": [
         {
           "measurementType": [
@@ -58,6 +60,7 @@
     },
     {
       "title": "Eagle Eye",
+      "description": "Log one eye pressure reading and one eye scan.",
       "criteria": [
         {
           "measurementType": [
@@ -81,6 +84,7 @@
     },
     {
       "title": "Deep Sleeper",
+      "description": "Log 2 sleep readings in the healthy range.",
       "criteria": [
         {
           "measurementType": [
@@ -95,6 +99,7 @@
     },
     {
       "title": "Steady Horizon",
+      "description": "Log 3 balance checks in the healthy range.",
       "criteria": [
         {
           "measurementType": [
@@ -109,6 +114,7 @@
     },
     {
       "title": "Strong Grip",
+      "description": "Log 3 grip strength checks in the healthy range.",
       "criteria": [
         {
           "measurementType": [
@@ -123,6 +129,7 @@
     },
     {
       "title": "Mind Zen",
+      "description": "Log your mood 7 days in a row.",
       "criteria": [
         {
           "measurementType": [
@@ -137,6 +144,7 @@
     },
     {
       "title": "Storm Watch",
+      "description": "Check solar proton flux 5 times.",
       "criteria": [
         {
           "measurementType": [

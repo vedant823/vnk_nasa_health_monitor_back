@@ -2,6 +2,7 @@
   "badges": [
     {
       "title": "Fine Badge",
+      "description": "Log m1 once.",
       "criteria": [
         {
           "measurementType": ["m1"],

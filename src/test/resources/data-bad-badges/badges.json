@@ -2,6 +2,7 @@
   "badges": [
     {
       "title": "Broken Badge",
+      "description": "References a measurement that does not exist.",
       "criteria": [
         {
           "measurementType": ["unknown_measurement"],

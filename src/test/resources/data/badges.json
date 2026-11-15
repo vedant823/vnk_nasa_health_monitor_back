@@ -2,6 +2,7 @@
   "badges": [
     {
       "title": "One Reading",
+      "description": "Log any measurement once.",
       "criteria": [
         {
           "measurementType": ["m1", "m2"],
@@ -14,6 +15,7 @@
     },
     {
       "title": "Two Days",
+      "description": "Log m1 on two different days.",
       "criteria": [
         {
           "measurementType": ["m1"],
@@ -26,6 +28,7 @@
     },
     {
       "title": "Three Day Streak",
+      "description": "Log m1 or m3 three days in a row.",
       "criteria": [
         {
           "measurementType": ["m1", "m3"],
@@ -38,6 +41,7 @@
     },
     {
       "title": "Green Days",
+      "description": "Log m1 in the healthy range on two different days.",
       "criteria": [
         {
           "measurementType": ["m1"],
@@ -50,6 +54,7 @@
     },
     {
       "title": "Green Percent",
+      "description": "Log m4 within the normal change from baseline.",
       "criteria": [
         {
           "measurementType": ["m4"],
@@ -62,6 +67,7 @@
     },
     {
       "title": "Impossible Visual",
+      "description": "Complete a visual measurement in the healthy range.",
       "criteria": [
         {
           "measurementType": ["m2"],
@@ -74,6 +80,7 @@
     },
     {
       "title": "Two Criteria",
+      "description": "Log m1 once and m3 once.",
       "criteria": [
         {
           "measurementType": ["m1"],

@@ -1,0 +1,53 @@
+{
+  "measurements": [
+    {
+      "id": "m1",
+      "name": "Test Numerical",
+      "type": "numerical",
+      "unit": "test units",
+      "dangerousLow": 3000.0,
+      "abnormalLow": 4500.0,
+      "abnormalHigh": 11000.0,
+      "dangerousHigh": 30000.0,
+      "canBeNegative": false,
+      "lowRecommendation": "low advice for m1",
+      "highRecommendation": "high advice for m1"
+    },
+    {
+      "id": "m2",
+      "name": "Test Visual",
+      "type": "visual",
+      "unit": null,
+      "canBeNegative": false
+    },
+    {
+      "id": "m3",
+      "name": "High Only",
+      "type": "numerical",
+      "unit": "test units",
+      "abnormalHigh": 100.0,
+      "canBeNegative": true
+    },
+    {
+      "id": "m4",
+      "name": "Percent From Baseline",
+      "type": "numerical",
+      "unit": "percent change from baseline",
+      "baselineMode": "percent",
+      "dangerousLow": -5.0,
+      "abnormalLow": -2.0,
+      "abnormalHigh": 3.0,
+      "dangerousHigh": 5.0,
+      "canBeNegative": true
+    },
+    {
+      "id": "m5",
+      "name": "Difference From Baseline",
+      "type": "numerical",
+      "unit": "units change from baseline",
+      "baselineMode": "difference",
+      "abnormalHigh": 20.0,
+      "canBeNegative": true
+    }
+  ]
+}

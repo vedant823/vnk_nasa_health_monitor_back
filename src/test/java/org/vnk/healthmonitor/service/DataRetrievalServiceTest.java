@@ -151,4 +151,13 @@ class DataRetrievalServiceTest {
         assertTrue(e.getMessage().contains("count < 1"),
                 "Unexpected message: " + e.getMessage());
     }
+
+    @Test
+    void badgeWithoutDescriptionFailsFast() {
+        IllegalStateException e = assertThrows(IllegalStateException.class,
+                () -> serviceFor("data-bad-desc"));
+
+        assertTrue(e.getMessage().contains("has no description"),
+                "Unexpected message: " + e.getMessage());
+    }
 }

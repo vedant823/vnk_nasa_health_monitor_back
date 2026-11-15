@@ -633,6 +633,9 @@ components:
       properties:
         title:
           type: string
+        description:
+          type: string
+          description: The human-readable explanation of how to earn the badge.
         criteria:
           type: array
           items:

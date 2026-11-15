@@ -208,6 +208,15 @@ class BadgeServiceTest {
     }
 
     @Test
+    void badgesCarryTheirDescriptionIntoTheResponse() {
+        log("m1", DAY1, 5200.0);
+
+        BadgeSet set = badgeService.evaluate(user);
+
+        assertEquals("Log any measurement once.", badgeByTitle(set, "One Reading").description());
+    }
+
+    @Test
     void earnedAndUnearnedAreDisjointAndComplete() {
         log("m1", DAY1, 5200.0);
 
