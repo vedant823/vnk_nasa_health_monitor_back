@@ -165,6 +165,44 @@ paths:
           $ref: "#/components/responses/NotFound"
         "401":
           $ref: "#/components/responses/Unauthorized"
+  /users/measurements/{measurementID}/score:
+    put:
+      tags: [User data]
+      operationId: setVisualScore
+      summary: Record the CMO's abnormality count for a visual reading
+      description:
+        Sets how many abnormalities the Crew Medical Officer observed in one
+        logged visual measurement — the most recent one by default, or the
+        reading at `measurementIndex` in the newest-first order the GET history
+        endpoint serves (0 = most recent). Only visual measurements can be
+        scored, and the count cannot be negative. In risk scoring, one
+        abnormality counts as abnormal (−40) and two or more as dangerous
+        (−75). Returns an empty 200 body.
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: "#/components/parameters/MeasurementID"
+        - name: numAbnormal
+          in: query
+          required: true
+          description: Number of abnormalities observed in the image (0 = reviewed and normal)
+          schema:
+            type: integer
+            minimum: 0
+        - name: measurementIndex
+          in: query
+          required: false
+          description: Index into the newest-first history (0 = most recent)
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Scored (empty body)
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
   /users/measurements/{measurementID}/frequency:
     put:
       tags: [User data]
@@ -437,6 +475,31 @@ paths:
                 $ref: "#/components/schemas/Measurement"
         "404":
           $ref: "#/components/responses/NotFound"
+  /data/measurements/{measurementID}/flags:
+    get:
+      tags: [Static data]
+      operationId: getMeasurementFlags
+      summary: Get a visual measurement's observable abnormalities
+      description:
+        Returns the list of abnormalities (flags) a Crew Medical Officer can
+        observe in the visual measurement's images, from measurementFlags.json.
+        The frontend presents them as a review checklist; the count of
+        observed flags becomes `numAbnormal` on the score endpoint.
+      parameters:
+        - $ref: "#/components/parameters/MeasurementID"
+      responses:
+        "200":
+          description: The flags
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: string
+        "400":
+          description: The measurement is not visual
+        "404":
+          $ref: "#/components/responses/NotFound"
 components:
   securitySchemes:
     bearerAuth:
@@ -522,6 +585,8 @@ components:
         One logged measurement event. Exactly one of `values` or `images` is
         populated, matching the measurement's category. Served values of
         baseline-relative measurements are the change from the user's baseline.
+        For visual readings, `numAbnormal` records how many abnormalities the
+        Crew Medical Officer observed (null = not yet reviewed).
       properties:
         measurementId:
           type: string
@@ -538,6 +603,10 @@ components:
           type: [array, "null"]
           items:
             type: string
+        numAbnormal:
+          type: [integer, "null"]
+          description: Abnormalities observed by the CMO (visual readings only)
+          minimum: 0
     Instruction:
       type: object
       properties:

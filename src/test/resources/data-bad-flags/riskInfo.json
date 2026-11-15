@@ -1,0 +1,18 @@
+{
+  "risks": [
+    {
+      "id": "r1",
+      "name": "Test Risk",
+      "category": "physical",
+      "measurementIds": ["m1", "m2"],
+      "reason": "Test reason for r1."
+    },
+    {
+      "id": "r2",
+      "name": "Empty Risk",
+      "category": "psychological",
+      "measurementIds": [],
+      "reason": "Test reason for r2."
+    }
+  ]
+}

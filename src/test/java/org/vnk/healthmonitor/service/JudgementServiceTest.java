@@ -24,7 +24,7 @@ import static org.mockito.Mockito.when;
 
 /**
  * Unit tests for the rule-based scoring: band boundaries, penalty
- * stacking, advice ordering, and visual-measurement exclusion.
+ * stacking, advice ordering, and visual-measurement scoring.
  */
 class JudgementServiceTest {
 
@@ -70,6 +70,17 @@ class JudgementServiceTest {
         user.getMeasurementHistory().computeIfAbsent(measurementId, id -> new ArrayList<>())
                 .add(new MeasurementSet(measurementId, "user", Instant.now(),
                         List.of(value), null));
+    }
+
+    private void logVisual(String measurementId, Integer numAbnormal) {
+        user.getMeasurementHistory().computeIfAbsent(measurementId, id -> new ArrayList<>())
+                .add(new MeasurementSet(measurementId, "user", Instant.now(),
+                        null, List.of("image"), numAbnormal));
+    }
+
+    private Measurement visual(String id) {
+        return new Measurement(id, id, MeasurementCategory.VISUAL, null,
+                uniformRanges(null, null, null, null), false, BaselineMode.NONE, null, null, List.of());
     }
 
     private void givenMeasurements(Measurement... measurements) {
@@ -218,17 +229,103 @@ class JudgementServiceTest {
     }
 
     @Test
-    void visualMeasurementsAreExcludedFromScoringButNoted() {
-        Measurement visual = new Measurement("v1", "v1", MeasurementCategory.VISUAL, null,
-                uniformRanges(null, null, null, null), false, BaselineMode.NONE, null, null, List.of());
-        givenMeasurements(visual);
-        user.getMeasurementHistory().computeIfAbsent("v1", id -> new ArrayList<>())
-                .add(new MeasurementSet("v1", "user", Instant.now(), null, List.of("image")));
+    void unscoredVisualMeasurementIsNotedButNotPenalized() {
+        givenMeasurements(visual("v1"));
+        logVisual("v1", null);
         RiskFactor risk = new RiskFactor("r1", "Risk", null, List.of("v1"), "reason");
 
         RiskEvaluation evaluation = judgementService.evaluate(user, risk);
         assertEquals(100, evaluation.score());
         assertTrue(evaluation.reason().contains("Visual measurements are not yet scored"));
+    }
+
+    @Test
+    void visualWithoutHistoryIsSkippedSilently() {
+        givenMeasurements(visual("v1"));
+        RiskFactor risk = new RiskFactor("r1", "Risk", null, List.of("v1"), "reason");
+
+        RiskEvaluation evaluation = judgementService.evaluate(user, risk);
+        assertEquals(100, evaluation.score());
+        assertEquals("All measurements are within the normal range.", evaluation.reason());
+    }
+
+    @Test
+    void visualWithZeroAbnormalitiesIsNormal() {
+        givenMeasurements(visual("v1"));
+        logVisual("v1", 0);
+        RiskFactor risk = new RiskFactor("r1", "Risk", null, List.of("v1"), "reason");
+
+        RiskEvaluation evaluation = judgementService.evaluate(user, risk);
+        assertEquals(100, evaluation.score());
+        assertEquals("All measurements are within the normal range.", evaluation.reason());
+    }
+
+    @Test
+    void visualWithOneAbnormalitySubtracts40() {
+        givenMeasurements(visual("v1"));
+        logVisual("v1", 1);
+        RiskFactor risk = new RiskFactor("r1", "Risk", null, List.of("v1"), "reason");
+
+        RiskEvaluation evaluation = judgementService.evaluate(user, risk);
+        assertEquals(60, evaluation.score());
+        assertEquals(1, evaluation.advice().size());
+        assertTrue(evaluation.advice().get(0).contains("Crew Medical Officer"),
+                "Unexpected advice: " + evaluation.advice().get(0));
+        assertTrue(evaluation.reason().contains("v1 shows 1 abnormality"),
+                "Unexpected reason: " + evaluation.reason());
+    }
+
+    @Test
+    void visualWithTwoAbnormalitiesSubtracts75() {
+        givenMeasurements(visual("v1"));
+        logVisual("v1", 2);
+        RiskFactor risk = new RiskFactor("r1", "Risk", null, List.of("v1"), "reason");
+
+        RiskEvaluation evaluation = judgementService.evaluate(user, risk);
+        assertEquals(25, evaluation.score());
+        assertTrue(evaluation.reason().contains("v1 shows 2 abnormalities"),
+                "Unexpected reason: " + evaluation.reason());
+    }
+
+    @Test
+    void visualWithMoreAbnormalitiesStillSubtracts75() {
+        givenMeasurements(visual("v1"));
+        logVisual("v1", 5);
+        RiskFactor risk = new RiskFactor("r1", "Risk", null, List.of("v1"), "reason");
+
+        assertEquals(25, judgementService.evaluate(user, risk).score());
+    }
+
+    @Test
+    void latestVisualReviewIsUsedNotOlderOnes() {
+        givenMeasurements(visual("v1"));
+        // Older reading scored dangerous, then a newer unscored one.
+        logVisual("v1", 3);
+        user.getMeasurementHistory().get("v1").get(0).setTimestamp(Instant.now().minusSeconds(60));
+        logVisual("v1", null);
+        RiskFactor risk = new RiskFactor("r1", "Risk", null, List.of("v1"), "reason");
+
+        RiskEvaluation evaluation = judgementService.evaluate(user, risk);
+        assertEquals(100, evaluation.score());
+        assertTrue(evaluation.reason().contains("Visual measurements are not yet scored"));
+    }
+
+    @Test
+    void visualAbnormalitiesOrderWithNumericalViolations() {
+        // A dangerous numerical reading must come before an abnormal
+        // (one-abnormality) visual finding in advice and reason.
+        givenMeasurements(
+                numerical("dangerous", 5.0, 10.0, 20.0, null, "dangerous advice", null),
+                visual("v1"));
+        logValue("dangerous", 1);
+        logVisual("v1", 1);
+        RiskFactor risk = new RiskFactor("r1", "Risk", null, List.of("dangerous", "v1"), "reason");
+
+        RiskEvaluation evaluation = judgementService.evaluate(user, risk);
+        assertEquals(1, evaluation.score());
+        assertEquals(List.of("dangerous advice"), evaluation.advice().subList(0, 1));
+        assertTrue(evaluation.reason().indexOf("dangerous") < evaluation.reason().indexOf("abnormality"),
+                "Unexpected reason order: " + evaluation.reason());
     }
 
     @Test

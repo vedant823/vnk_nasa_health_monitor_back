@@ -1,0 +1,8 @@
+{
+  "measurements": [
+    {
+      "measurementID": "m1",
+      "flags": ["Flag for a numerical measurement"]
+    }
+  ]
+}

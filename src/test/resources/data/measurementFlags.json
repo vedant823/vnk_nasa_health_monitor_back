@@ -1,0 +1,12 @@
+{
+  "measurements": [
+    {
+      "measurementID": "m2",
+      "flags": [
+        "Cotton wool spots near the optic nerve head",
+        "Retinal vessel tortuosity",
+        "Image blur requiring re-capture"
+      ]
+    }
+  ]
+}

@@ -87,9 +87,12 @@ class BaselineFunctionalTest extends FunctionalTestBase {
         assertEquals(60, evaluation.score());
         assertTrue(evaluation.advice().stream().anyMatch(a -> a.contains("Retina is thickening")),
                 "Expected the high-side recommendation: " + evaluation.advice());
-        // The visual OCT measurement in the same risk is noted but not scored.
-        assertTrue(evaluation.reason().contains("Visual measurements are not yet scored"),
+        // No OCT reading was logged, so the visual measurement is skipped
+        // entirely: the reason describes only the retinal violation.
+        assertTrue(evaluation.reason().contains("Retinal Thickness Change"),
                 "Unexpected reason: " + evaluation.reason());
+        assertTrue(!evaluation.reason().contains("not yet scored"),
+                "Nothing to review, so no pending-review note: " + evaluation.reason());
     }
 
     @Test

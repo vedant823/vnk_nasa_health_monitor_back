@@ -50,6 +50,14 @@ public class DataRetrievalService {
     }
 
     @JsonIgnoreProperties(ignoreUnknown = true)
+    private record FlagsFile(List<RawFlags> measurements) {
+    }
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    private record RawFlags(String measurementID, List<String> flags) {
+    }
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
     private record RawMeasurement(
             String id,
             String name,
@@ -74,12 +82,14 @@ public class DataRetrievalService {
     private final Map<String, Measurement> measurements = new HashMap<>();
     private final Map<String, RiskFactor> risks = new LinkedHashMap<>();
     private final List<Badge> badges = new ArrayList<>();
+    private final Map<String, List<String>> flags = new HashMap<>();
 
     public DataRetrievalService(@Value("${app.data-dir}") String dataDir) {
         ObjectMapper mapper = new ObjectMapper();
         loadRisks(mapper, dataDir);
         loadMeasurements(mapper, dataDir);
         loadBadges(mapper, dataDir);
+        loadFlags(mapper, dataDir);
     }
 
     private void loadRisks(ObjectMapper mapper, String dataDir) {
@@ -205,6 +215,33 @@ public class DataRetrievalService {
     }
 
     /**
+     * Loads measurementFlags.json — the list of observable abnormalities
+     * per visual measurement, which the frontend presents to the Crew
+     * Medical Officer during review. Flags are only meaningful for
+     * visual measurements, so an entry for an unknown or numerical
+     * measurement aborts the application at startup.
+     */
+    private void loadFlags(ObjectMapper mapper, String dataDir) {
+        try {
+            FlagsFile file = mapper.readValue(new File(dataDir, "measurementFlags.json"), FlagsFile.class);
+            for (RawFlags entry : file.measurements()) {
+                Measurement measurement = measurements.get(entry.measurementID());
+                if (measurement == null) {
+                    throw new IllegalStateException("measurementFlags.json references unknown measurement "
+                            + entry.measurementID());
+                }
+                if (measurement.category() != MeasurementCategory.VISUAL) {
+                    throw new IllegalStateException("measurementFlags.json has flags for "
+                            + entry.measurementID() + ", which is not a visual measurement");
+                }
+                flags.put(entry.measurementID(), List.copyOf(entry.flags()));
+            }
+        } catch (JacksonException e) {
+            throw new IllegalStateException("Failed to load measurementFlags.json", e);
+        }
+    }
+
+    /**
      * Returns a measurement's details and instructions.
      */
     public Measurement getMeasurement(String measurementId) {
@@ -245,5 +282,19 @@ public class DataRetrievalService {
      */
     public List<Badge> getBadges() {
         return List.copyOf(badges);
+    }
+
+    /**
+     * Returns the observable abnormalities (flags) of a visual
+     * measurement, for the Crew Medical Officer's review checklist.
+     * Numerical measurements have no flags (400); unknown ones 404.
+     */
+    public List<String> getFlags(String measurementId) {
+        Measurement measurement = getMeasurement(measurementId);
+        if (measurement.category() != MeasurementCategory.VISUAL) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "Measurement " + measurementId + " is not a visual measurement");
+        }
+        return flags.getOrDefault(measurementId, List.of());
     }
 }

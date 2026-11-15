@@ -201,4 +201,51 @@ class DataRetrievalServiceTest {
         assertTrue(e.getMessage().contains("unknown environment spaceship"),
                 "Unexpected message: " + e.getMessage());
     }
+
+    @Test
+    void loadsFlagsForVisualMeasurements() {
+        DataRetrievalService service = serviceFor("data");
+
+        assertEquals(List.of("Cotton wool spots near the optic nerve head",
+                "Retinal vessel tortuosity",
+                "Image blur requiring re-capture"), service.getFlags("m2"));
+    }
+
+    @Test
+    void flagsForANumericalMeasurementReturn400() {
+        DataRetrievalService service = serviceFor("data");
+
+        ResponseStatusException e = assertThrows(ResponseStatusException.class,
+                () -> service.getFlags("m1"));
+
+        assertEquals(HttpStatus.BAD_REQUEST, e.getStatusCode());
+    }
+
+    @Test
+    void flagsForAnUnknownMeasurementReturn404() {
+        DataRetrievalService service = serviceFor("data");
+
+        ResponseStatusException e = assertThrows(ResponseStatusException.class,
+                () -> service.getFlags("nope"));
+
+        assertEquals(HttpStatus.NOT_FOUND, e.getStatusCode());
+    }
+
+    @Test
+    void flagsReferencingANumericalMeasurementFailFast() {
+        IllegalStateException e = assertThrows(IllegalStateException.class,
+                () -> serviceFor("data-bad-flags"));
+
+        assertTrue(e.getMessage().contains("not a visual measurement"),
+                "Unexpected message: " + e.getMessage());
+    }
+
+    @Test
+    void flagsReferencingAnUnknownMeasurementFailFast() {
+        IllegalStateException e = assertThrows(IllegalStateException.class,
+                () -> serviceFor("data-bad-flags-unknown"));
+
+        assertTrue(e.getMessage().contains("unknown measurement unknown_measurement"),
+                "Unexpected message: " + e.getMessage());
+    }
 }

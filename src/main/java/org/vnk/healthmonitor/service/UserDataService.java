@@ -205,6 +205,41 @@ public class UserDataService {
         userData.save(user);
     }
 
+    /**
+     * Sets how many abnormalities the Crew Medical Officer observed in
+     * one logged visual reading: the most recent one by default, or the
+     * one at {@code measurementIndex} in the newest-first order the GET
+     * endpoint serves (0 = most recent). Only visual measurements can be
+     * scored, and the count cannot be negative.
+     */
+    public void setScore(UserDocument user, String measurementId,
+                         Integer measurementIndex, int numAbnormal) {
+        Measurement measurement = requireMeasurement(measurementId);
+        if (measurement.category() != MeasurementCategory.VISUAL) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "Only visual measurements can be scored");
+        }
+        if (numAbnormal < 0) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "numAbnormal cannot be negative");
+        }
+        List<MeasurementSet> stored = user.getMeasurementHistory().get(measurementId);
+        if (stored == null || stored.isEmpty()) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND,
+                    "No readings logged for " + measurementId);
+        }
+        // Sorted exactly like getMeasurements, so indexes match what GET serves.
+        List<MeasurementSet> sorted = new ArrayList<>(stored);
+        sorted.sort(Comparator.comparing(MeasurementSet::getTimestamp).reversed());
+        int position = measurementIndex != null ? measurementIndex : 0;
+        if (position < 0 || position >= sorted.size()) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND,
+                    "Invalid measurement index: " + measurementIndex);
+        }
+        sorted.get(position).setNumAbnormal(numAbnormal);
+        userData.save(user);
+    }
+
     private boolean isBaselineRelative(Measurement measurement) {
         return measurement.category() == MeasurementCategory.NUMERICAL
                 && measurement.baselineMode() != BaselineMode.NONE;
@@ -225,7 +260,7 @@ public class UserDataService {
             converted.add(change != null ? change : raw);
         }
         return new MeasurementSet(set.getMeasurementId(), set.getUserId(), set.getTimestamp(),
-                converted, set.getImages());
+                converted, set.getImages(), set.getNumAbnormal());
     }
 
     /**

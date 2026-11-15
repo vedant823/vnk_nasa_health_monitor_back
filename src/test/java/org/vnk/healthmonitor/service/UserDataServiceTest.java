@@ -65,6 +65,11 @@ class UserDataServiceTest {
                 uniformRanges(3000.0, 4500.0, 11000.0, 30000.0), false, BaselineMode.NONE, null, null, List.of());
     }
 
+    private Measurement visualMeasurement(String id) {
+        return new Measurement(id, id, MeasurementCategory.VISUAL, null,
+                uniformRanges(null, null, null, null), false, BaselineMode.NONE, null, null, List.of());
+    }
+
     private static List<Range> uniformRanges(Double dangerousLow, Double abnormalLow,
                                              Double abnormalHigh, Double dangerousHigh) {
         return java.util.Arrays.stream(Environment.values())
@@ -345,9 +350,100 @@ class UserDataServiceTest {
         }
     }
 
+    private void seedVisualHistory(String measurementId, Instant... times) {
+        List<MeasurementSet> list = user.getMeasurementHistory()
+                .computeIfAbsent(measurementId, id -> new java.util.ArrayList<>());
+        for (Instant time : times) {
+            list.add(new MeasurementSet(measurementId, "user", time, null, List.of("image")));
+        }
+    }
+
     private void assertThrows404(Runnable action) {
         ResponseStatusException e = assertThrows(ResponseStatusException.class, action::run);
         assertEquals(HttpStatus.NOT_FOUND, e.getStatusCode());
+    }
+
+    @Test
+    void setScoreDefaultsToTheMostRecentReading() {
+        givenMeasurement(visualMeasurement("oct"));
+        seedVisualHistory("oct", NOW.minusSeconds(86400), NOW);
+
+        userDataService.setScore(user, "oct", null, 2);
+
+        List<MeasurementSet> stored = user.getMeasurementHistory().get("oct");
+        assertEquals(2, stored.get(1).getNumAbnormal());
+        assertNull(stored.get(0).getNumAbnormal());
+        verify(userData).save(user);
+    }
+
+    @Test
+    void setScoreByIndexTargetsThatReading() {
+        givenMeasurement(visualMeasurement("oct"));
+        seedVisualHistory("oct", NOW.minusSeconds(86400), NOW);
+
+        userDataService.setScore(user, "oct", 1, 1);
+
+        List<MeasurementSet> stored = user.getMeasurementHistory().get("oct");
+        // Index 1 in the newest-first order is the older reading.
+        assertEquals(1, stored.get(0).getNumAbnormal());
+        assertNull(stored.get(1).getNumAbnormal());
+    }
+
+    @Test
+    void setScoreToZeroRecordsAReviewedNormalReading() {
+        givenMeasurement(visualMeasurement("oct"));
+        seedVisualHistory("oct", NOW);
+
+        userDataService.setScore(user, "oct", null, 0);
+
+        assertEquals(0, user.getMeasurementHistory().get("oct").get(0).getNumAbnormal());
+        verify(userData).save(user);
+    }
+
+    @Test
+    void scoringANumericalMeasurementReturns400() {
+        givenMeasurement(plainMeasurement("wbc"));
+        seedHistory("wbc", NOW);
+
+        ResponseStatusException e = assertThrows(ResponseStatusException.class,
+                () -> userDataService.setScore(user, "wbc", null, 1));
+
+        assertEquals(HttpStatus.BAD_REQUEST, e.getStatusCode());
+    }
+
+    @Test
+    void negativeScoreReturns400() {
+        givenMeasurement(visualMeasurement("oct"));
+        seedVisualHistory("oct", NOW);
+
+        ResponseStatusException e = assertThrows(ResponseStatusException.class,
+                () -> userDataService.setScore(user, "oct", null, -1));
+
+        assertEquals(HttpStatus.BAD_REQUEST, e.getStatusCode());
+    }
+
+    @Test
+    void setScoreWithUnknownMeasurementReturns404() {
+        when(dataRetrievalService.getMeasurement("nope")).thenThrow(
+                new ResponseStatusException(HttpStatus.NOT_FOUND, "Unknown measurement: nope"));
+
+        assertThrows404(() -> userDataService.setScore(user, "nope", null, 1));
+    }
+
+    @Test
+    void setScoreWithoutReadingsReturns404() {
+        givenMeasurement(visualMeasurement("oct"));
+
+        assertThrows404(() -> userDataService.setScore(user, "oct", null, 1));
+    }
+
+    @Test
+    void setScoreWithInvalidIndexReturns404() {
+        givenMeasurement(visualMeasurement("oct"));
+        seedVisualHistory("oct", NOW);
+
+        assertThrows404(() -> userDataService.setScore(user, "oct", -1, 1));
+        assertThrows404(() -> userDataService.setScore(user, "oct", 1, 1));
     }
 
     @Test

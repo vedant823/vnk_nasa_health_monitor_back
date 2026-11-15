@@ -58,6 +58,10 @@
       * Deletes the most recent measurement, or the measurement of index `measurementIndex` if it is provided. The index counts from the newest-first order the GET history endpoint serves (0 = most recent). For baseline-relative measurements, the baseline reading (the chronologically first one) cannot be deleted while other readings exist; deleting it as the only reading also clears the stored baseline, so a re-log starts a fresh one. The last-taken time is recomputed from the remaining history so reminders stay correct.
       * Query: `measurementIndex` (integer, optional)
       * Outputs nothing. Errors: 404 unknown measurement, 404 invalid index, 404 no readings logged, 400 deleting the baseline reading while other readings exist
+    * `PUT /users/measurements/{measurementID}/score`
+      * Sets the score for the the most recent measurement, or the measurement of index `measurementIndex` if it is provided. The index counts from the newest-first order the GET history endpoint serves (0 = most recent). This only works for visual measurements.
+      * Query: `numAbnormal` (integer)
+      * Outputs nothing. Errors: 404 unknown measurement, 400 invalid measurement
     * `PUT /users/measurements/{measurementID}/frequency`
       * Sets how many days pass between reminders for one measurement (the frontend's frequency dropdown). The next due date becomes last-taken plus this many days.
       * Body: `frequencyDays` (integer, minimum 1)
@@ -100,6 +104,9 @@
     * `GET /data/risks`
       * Returns every risk factor in file order, so the frontend's home grid hardcodes nothing.
       * Outputs `List<RiskFactor>`
+    * `GET /data/measurements/{measurementID}/flags`
+      * Returns the list of flags from the given measurement, if it is visual.
+      * Outputs `List<String>` Errors: 404 measurement not found, 400 measurement not visual
   * **Notes on output shapes (deliberate evolutions, justified):**
     * `RiskEvaluation.advice` is a `List<String>`, not a single string: several measurements can be abnormal at once, each with its own recommendation string (the `JudgementService` spec text already describes the advice as "a list", ordered most severe first).
     * `Measurement` and `RiskFactor` carry the display name, unit, guideline bounds, and baseline mode from `measurementDetails.json`/`riskInfo.json`, per the addendum's merge and the "the frontend hardcodes nothing" principle.
@@ -114,7 +121,7 @@
   * **DataRetrievalService**
     * Gets the risk data and measurement instructions using Jackson and records
   * **JudgementService**
-    * Rule-based judging against the guideline ranges for the user's environment (no statistics, no AI). Each numerical measurement's latest value is classified against the range in `measurementDetails.json` matching the user's environment: below `abnormalLow` (or above `abnormalHigh`) is abnormal, and beyond `dangerousLow`/`dangerousHigh` is dangerous. Scoring starts at 100; each abnormal measurement subtracts 40 and each dangerous one subtracts 75, stacking and floored at 1. The recommendation string matching the violated side of every abnormal measurement is collected into the advice (a list), ordered most severe first. Visual measurements are stored but excluded from scoring for the time being.
+    * Rule-based judging against the guideline ranges for the user's environment (no statistics, no AI). Each numerical measurement's latest value is classified against the range in `measurementDetails.json` matching the user's environment: below `abnormalLow` (or above `abnormalHigh`) is abnormal, and beyond `dangerousLow`/`dangerousHigh` is dangerous. Scoring starts at 100; each abnormal measurement subtracts 40 and each dangerous one subtracts 75, stacking and floored at 1. The recommendation string matching the violated side of every abnormal measurement is collected into the advice (a list), ordered most severe first. Visual measurements are stored, and the user can add a number of abnormalities through `PUT /users/measurements/{measurementID}/score`. From there, 1 abnormality triggers an abnormal measurement, while 2 or more trigger a dangerous measurement.
   * **BadgeService**
     * Checks if a badge has been earned and delivers a `BadgeDetails` object based off of the user's history.
 * **Repositories / Databases**
@@ -142,7 +149,9 @@
       * Contains a user’s username, hashed password, and current token as well as their environment.
       * Document class contains a map of measurement IDs to MeasurementSet objects
     * `MeasurementSet`
-      * Contains a list / array of numbers or images along with the user ID it is associated with and the Measurement ID it corresponds to
+      * Contains a list / array of numbers or `VisualMeasurement` along with the user ID it is associated with and the Measurement ID it corresponds to
+    * `VisualMeasurement`
+      * Contains an image and an optional number of abnormalities.
     * `BadgeSet`
       * Contains two lists of badges: a list of Badges for those that have been completed and a list of BadgeStatus for those that have not.
     * `BadgeStatus`
@@ -163,6 +172,8 @@
       * Contains each measurement's display name, type (numerical, visual), unit, and for numerical values a `ranges` list — one `Range` per environment ("spacecraft", "station", "rover", "moon", "mars"), each holding the four optional bounds around abnormal and dangerous levels (a missing side does not apply) — plus a boolean indicating whether the value can be negative, and 2 optional recommendation strings for an unusually low and high number. The user's environment selects which range is used in analysis.
     * `badges.json`
       * Contains each badge and its nested criteria: Each badge has a title, a description string explaining how to earn it, and a list of criteria; each criterion has a set of valid measurements, some booleans dictating its behavior, and an integer dictating its length.
+    * `measurementFlags.json`
+      * Contains a list of flags for each VISUAL measurement that would make it seem abnormal. To be served to the user.
 
 ---
 
@@ -180,7 +191,7 @@
 * **API client artifacts:** `docs/openapi.yaml` (OpenAPI 3.1, every endpoint and schema, mirrors the descriptive REST section above; importable into Hoppscotch, Postman, and Insomnia).
 * **Testing:** Two-layer suite. Unit tests (plain JUnit + Mockito; services with mocked dependencies and a fixed `Clock`, controllers via standalone MockMvc with mocked services) run with `./gradlew test` and need no external services. Functional tests (tagged `functional`, `@SpringBootTest(RANDOM_PORT)` driving the fully booted app over real HTTP against the Dockerized MongoDB in the dedicated `healthmonitor-functional` database) run with `./gradlew functionalTest` after `docker-compose up -d`; they cover the complete user journey, auth and error paths (missing header → 400, invalid token → 401, unknown IDs → 404, duplicate username → 409, validation errors → 400), the data endpoints, CORS preflight/actual requests for the Hoppscotch origin, and the notification digests. The functional database is dropped before each test class and again when the test JVM exits, so runs leave no permanent data behind. (Note: the database URIs must use `spring.mongodb.uri` — Spring Boot 4 deprecated `spring.data.mongodb.uri` at error level, and the old key was silently ignored, sending everything to Mongo's default `test` database.)
 * **Package layout:** `controller/`, `service/`, `repository/`, `domain/{dto,document}/`, `config/` (CORS + error handling + Clock + scheduling).
-* **Status:** All spec classes exist; controllers are wired to services; service logic is implemented as described above. Controllers remain pure delegation. The daily/weekly/monthly reminder notifications (the spec's headline requirement) are implemented and tested; the badge system (`GET /users/badges`, `BadgeService`, `badges.json`) and the environment feature (`PUT`/`GET /users/environment`, per-environment guideline ranges in `measurementDetails.json` used by scoring and badge evaluation) are implemented and tested. The test suite is green.
+* **Status:** All spec classes exist; controllers are wired to services; service logic is implemented as described above. Controllers remain pure delegation. The daily/weekly/monthly reminder notifications (the spec's headline requirement) are implemented and tested; the badge system (`GET /users/badges`, `BadgeService`, `badges.json`), the environment feature (`PUT`/`GET /users/environment`, per-environment guideline ranges in `measurementDetails.json` used by scoring and badge evaluation), and visual measurement scoring (`PUT /users/measurements/{measurementID}/score` with `numAbnormal`, `GET /data/measurements/{measurementID}/flags`, and abnormality-count-based judging in `JudgementService`) are implemented and tested. The test suite is green.
 
 ---
 
@@ -188,7 +199,7 @@
 
 ### Backend
 1. ~~**User baselines**~~ — **Delivered.** Baseline-relative measurements (`baselineMode: percent|difference` in `measurementDetails.json`) now take plain raw values; the first logged reading is stored on the user document as the baseline and every reading is converted server-side before scoring and before serving history.
-2. **Visual measurement scoring** — replace the neutral placeholder for visual measurements (e.g. `oct_fundus_scan`) with real analysis, or a manual score-entry path for the Crew Medical Officer.
+2. ~~**Visual measurement scoring**~~ — **Delivered.** Visual readings carry an optional `numAbnormal` (the count of abnormalities the Crew Medical Officer observed, entered via `PUT /users/measurements/{measurementID}/score` — the most recent reading by default, or by newest-first index). `JudgementService` counts one abnormality as abnormal (−40) and two or more as dangerous (−75); unreviewed readings are noted in the reason without a penalty. `GET /data/measurements/{measurementID}/flags` serves the per-measurement review checklist from `measurementFlags.json` (visual measurements only, fail-fast validated at startup).
 3. **Image storage** — visual `MeasurementSet` images are base64 in MongoDB documents; move to GridFS or object storage before real use (16 MB document limit).
 4. **Per-measurement weights** — add an optional `weight` per measurement in `riskInfo.json` so some measurements count more toward a risk's score.
 5. ~~**Trend hints**~~ — **Delivered.** `GET /users/measurements/{measurementID}/trend` returns the direction (`up`/`down`/`flat`/null) of the two most recent baseline-adjusted readings.
@@ -196,7 +207,7 @@
 7. **Notification delivery** — replace `LoggingNotificationSender` with a real push/email channel behind the same `NotificationSender` interface. (The `@Scheduled` trigger itself is now covered by a functional test that boots the app with a one-second cron and a counting sender.)
 8. **API documentation & ops** — OpenAPI/Swagger UI, Actuator health endpoints, and a production deployment story (containerized app + MongoDB Atlas or a managed Mongo).
 
-*(Delivered since the original list: the two-layer test suite — unit tests for `UserReminderService`, `JudgementService`, `UserLoginService`, `DataRetrievalService`, `UserDataService`, `NotificationScheduler`, and controller tests, plus functional tests over real HTTP against the Dockerized Mongo — and the scheduled daily/weekly/monthly notifications via `NotificationSender`/`NotificationScheduler`. Also delivered since: user baselines with server-side raw-to-change conversion, the per-measurement trend endpoint, `GET /users/digest`, which serves the exact buckets the scheduled sender delivers over HTTP, the measurement-deletion endpoint with baseline protection, the badge system — `GET /users/badges` evaluated live from history by `BadgeService`, with `badges.json`-defined criteria supporting distinct days, consecutive-day streaks, and green-status readings, served with per-criterion progress fractions — and the environment feature: `PUT`/`GET /users/environment` with five environments (spacecraft, station, rover, moon, mars), per-environment `ranges` in `measurementDetails.json` (fail-fast validated to cover every environment), and environment-dependent classification in `JudgementService` and `BadgeService`.)*
+*(Delivered since the original list: the two-layer test suite — unit tests for `UserReminderService`, `JudgementService`, `UserLoginService`, `DataRetrievalService`, `UserDataService`, `NotificationScheduler`, and controller tests, plus functional tests over real HTTP against the Dockerized Mongo — and the scheduled daily/weekly/monthly notifications via `NotificationSender`/`NotificationScheduler`. Also delivered since: user baselines with server-side raw-to-change conversion, the per-measurement trend endpoint, `GET /users/digest`, which serves the exact buckets the scheduled sender delivers over HTTP, the measurement-deletion endpoint with baseline protection, the badge system — `GET /users/badges`, `BadgeService`, `badges.json` — evaluated live from history by `BadgeService`, with `badges.json`-defined criteria supporting distinct days, consecutive-day streaks, and green-status readings, served with per-criterion progress fractions — the environment feature: `PUT`/`GET /users/environment` with five environments (spacecraft, station, rover, moon, mars), per-environment `ranges` in `measurementDetails.json` (fail-fast validated to cover every environment), and environment-dependent classification in `JudgementService` and `BadgeService` — and visual measurement scoring: `PUT /users/measurements/{measurementID}/score?numAbnormal=N` (newest-first index supported), `GET /data/measurements/{measurementID}/flags`, and abnormality-count judging in `JudgementService` (1 abnormal → −40, 2+ → −75, unreviewed noted without penalty).)*
 
 ### Frontend (React)
 1. **Screens** — login, home (risk grid + measurement list), reminders (day/week/month), risk detail, measurement overview (graph + frequency dropdown), and measurement performance (instructions + input) screens, all parameterized by backend IDs.

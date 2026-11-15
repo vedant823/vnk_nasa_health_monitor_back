@@ -1,0 +1,102 @@
+{
+  "badges": [
+    {
+      "title": "One Reading",
+      "description": "Log any measurement once.",
+      "criteria": [
+        {
+          "measurementType": ["m1", "m2"],
+          "distinctDays": false,
+          "streak": false,
+          "isOk": false,
+          "count": 1
+        }
+      ]
+    },
+    {
+      "title": "Two Days",
+      "description": "Log m1 on two different days.",
+      "criteria": [
+        {
+          "measurementType": ["m1"],
+          "distinctDays": true,
+          "streak": false,
+          "isOk": false,
+          "count": 2
+        }
+      ]
+    },
+    {
+      "title": "Three Day Streak",
+      "description": "Log m1 or m3 three days in a row.",
+      "criteria": [
+        {
+          "measurementType": ["m1", "m3"],
+          "distinctDays": true,
+          "streak": true,
+          "isOk": false,
+          "count": 3
+        }
+      ]
+    },
+    {
+      "title": "Green Days",
+      "description": "Log m1 in the healthy range on two different days.",
+      "criteria": [
+        {
+          "measurementType": ["m1"],
+          "distinctDays": true,
+          "streak": false,
+          "isOk": true,
+          "count": 2
+        }
+      ]
+    },
+    {
+      "title": "Green Percent",
+      "description": "Log m4 within the normal change from baseline.",
+      "criteria": [
+        {
+          "measurementType": ["m4"],
+          "distinctDays": false,
+          "streak": false,
+          "isOk": true,
+          "count": 1
+        }
+      ]
+    },
+    {
+      "title": "Impossible Visual",
+      "description": "Complete a visual measurement in the healthy range.",
+      "criteria": [
+        {
+          "measurementType": ["m2"],
+          "distinctDays": false,
+          "streak": false,
+          "isOk": true,
+          "count": 1
+        }
+      ]
+    },
+    {
+      "title": "Two Criteria",
+      "description": "Log m1 once and m3 once.",
+      "criteria": [
+        {
+          "measurementType": ["m1"],
+          "distinctDays": false,
+          "streak": false,
+          "isOk": false,
+          "count": 1
+        },
+        {
+          "measurementType": ["m3"],
+          "distinctDays": false,
+          "streak": false,
+          "isOk": false,
+          "count": 1
+        }
+      ]
+    }
+  ]
+}

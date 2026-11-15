@@ -117,7 +117,8 @@ public abstract class FunctionalTestBase {
     }
 
     public record MeasurementSetDto(String measurementId, String userId, String timestamp,
-                                    java.util.List<Double> values, java.util.List<String> images) {
+                                    java.util.List<Double> values, java.util.List<String> images,
+                                    Integer numAbnormal) {
     }
 
     public record DigestDto(String username,

@@ -1,0 +1,8 @@
+{
+  "measurements": [
+    {
+      "measurementID": "unknown_measurement",
+      "flags": ["Flag for an unknown measurement"]
+    }
+  ]
+}

@@ -3,6 +3,7 @@ package org.vnk.healthmonitor.service;
 import org.springframework.stereotype.Service;
 import org.vnk.healthmonitor.domain.dto.Measurement;
 import org.vnk.healthmonitor.domain.dto.Environment;
+import org.vnk.healthmonitor.domain.dto.MeasurementCategory;
 import org.vnk.healthmonitor.domain.dto.Range;
 import org.vnk.healthmonitor.domain.dto.RiskEvaluation;
 import org.vnk.healthmonitor.domain.dto.RiskFactor;
@@ -20,9 +21,13 @@ import java.util.List;
  * Scoring starts at 100; each abnormal measurement lowers the score
  * (abnormal -40, dangerous -75, stacked, floored at 1). The
  * recommendation string of every abnormal measurement is collected into
- * the advice, most severe first. Visual measurements are excluded from
- * scoring. Measurements expressed relative to a baseline are converted
- * from raw readings to their change from the user's baseline first.
+ * the advice, most severe first. Visual measurements are judged by the
+ * number of abnormalities the Crew Medical Officer recorded via
+ * PUT /users/measurements/{id}/score: one counts as abnormal, two or
+ * more as dangerous, and an unreviewed image (no count yet) is noted in
+ * the reason without a penalty. Measurements expressed relative to a
+ * baseline are converted from raw readings to their change from the
+ * user's baseline first.
  */
 @Service
 public class JudgementService {
@@ -53,8 +58,20 @@ public class JudgementService {
 
         for (String measurementId : risk.measurementIds()) {
             Measurement measurement = dataRetrievalService.getMeasurement(measurementId);
-            if (measurement.category() == org.vnk.healthmonitor.domain.dto.MeasurementCategory.VISUAL) {
-                hasVisual = true;
+            if (measurement.category() == MeasurementCategory.VISUAL) {
+                List<MeasurementSet> visualHistory = user.historyOf(measurementId);
+                if (visualHistory.isEmpty()) {
+                    continue;
+                }
+                Integer numAbnormal = visualHistory.get(visualHistory.size() - 1).getNumAbnormal();
+                if (numAbnormal == null) {
+                    // Logged but not yet reviewed by the Crew Medical Officer.
+                    hasVisual = true;
+                } else if (numAbnormal == 1) {
+                    abnormal.add(describeVisual(measurement, numAbnormal));
+                } else if (numAbnormal > 1) {
+                    dangerous.add(describeVisual(measurement, numAbnormal));
+                }
                 continue;
             }
             List<MeasurementSet> history = user.historyOf(measurementId);
@@ -154,6 +171,20 @@ public class JudgementService {
                 penalty = ABNORMAL_PENALTY;
             }
         }
+        return new Anomaly(description, recommendation, penalty);
+    }
+
+    /**
+     * A visual measurement's abnormality count maps onto the same
+     * penalty scale as the numerical bands: one observed abnormality is
+     * abnormal (-40), two or more are dangerous (-75). Zero is normal.
+     */
+    private Anomaly describeVisual(Measurement measurement, int numAbnormal) {
+        String description = measurement.name() + " shows " + numAbnormal
+                + (numAbnormal == 1 ? " abnormality" : " abnormalities");
+        String recommendation = measurement.name()
+                + " shows abnormalities: review the flagged findings with the Crew Medical Officer.";
+        int penalty = numAbnormal == 1 ? ABNORMAL_PENALTY : DANGEROUS_PENALTY;
         return new Anomaly(description, recommendation, penalty);
     }
 

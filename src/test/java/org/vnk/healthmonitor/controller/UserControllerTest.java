@@ -119,6 +119,27 @@ class UserControllerTest {
     }
 
     @Test
+    void setScoreDelegatesWithoutIndex() throws Exception {
+        mockMvc.perform(put("/users/measurements/m1/score")
+                        .header(AUTH, BEARER)
+                        .param("numAbnormal", "2"))
+                .andExpect(status().isOk());
+
+        verify(userDataService).setScore(user, "m1", null, 2);
+    }
+
+    @Test
+    void setScoreDelegatesWithIndex() throws Exception {
+        mockMvc.perform(put("/users/measurements/m1/score")
+                        .header(AUTH, BEARER)
+                        .param("numAbnormal", "0")
+                        .param("measurementIndex", "1"))
+                .andExpect(status().isOk());
+
+        verify(userDataService).setScore(user, "m1", 1, 0);
+    }
+
+    @Test
     void setFrequencyDelegatesWithBody() throws Exception {
         mockMvc.perform(put("/users/measurements/m1/frequency")
                         .header(AUTH, BEARER)

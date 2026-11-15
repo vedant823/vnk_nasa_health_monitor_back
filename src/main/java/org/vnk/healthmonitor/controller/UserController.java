@@ -96,6 +96,21 @@ public class UserController {
     }
 
     /**
+     * Sets how many abnormalities the Crew Medical Officer observed in
+     * one logged visual measurement: the most recent one by default, or
+     * the one at the given newest-first index (0 = most recent).
+     */
+    @PutMapping("/users/measurements/{measurementID}/score")
+    public void setScore(
+            @RequestHeader("Authorization") String authorization,
+            @PathVariable("measurementID") String measurementId,
+            @RequestParam("numAbnormal") int numAbnormal,
+            @RequestParam(name = "measurementIndex", required = false) Integer measurementIndex) {
+        UserDocument user = userLoginService.resolveUser(authorization);
+        userDataService.setScore(user, measurementId, measurementIndex, numAbnormal);
+    }
+
+    /**
      * Updates the reminder frequency (days between measurements) for one
      * measurement. Supports the frontend's frequency dropdown.
      */

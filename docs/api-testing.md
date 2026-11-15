@@ -71,6 +71,9 @@ property. Works from the Hoppscotch web app, the desktop app, curl, or the brows
   `ranges` list — one entry per environment (`spacecraft`, `station`, `rover`,
   `moon`, `mars`) — and the entry matching the user's environment is what
   scoring and badge evaluation use.
+* `GET /data/measurements/oct_fundus_scan/flags` — the observable abnormalities
+  of a **visual** measurement (the CMO's review checklist). Numerical
+  measurements return 400; unknown IDs 404.
 
 Use the IDs from these responses in the URLs below — nothing needs to be hardcoded.
 
@@ -99,6 +102,13 @@ Use the IDs from these responses in the URLs below — nothing needs to be hardc
   ```json
   {"frequencyDays": 3}
   ```
+* `PUT /users/measurements/oct_fundus_scan/score?numAbnormal=2` — record how many
+  abnormalities the Crew Medical Officer observed in one logged **visual**
+  reading: the most recent one by default, or the reading at `?measurementIndex=N`
+  of the newest-first history (0 = most recent, matching the GET history order).
+  Zero means reviewed and normal. Numerical measurements return 400, a negative
+  count 400, and unknown/no-reading/bad-index cases 404. In risk scoring one
+  abnormality counts as abnormal (−40) and two or more as dangerous (−75).
 * `DELETE /users/measurements/white_blood_cells` — delete the most recent reading.
   Add `?measurementIndex=N` to delete the reading at index N of the newest-first
   history (0 = most recent, matching the GET history order). For baseline-relative
@@ -144,6 +154,8 @@ Use the IDs from these responses in the URLs below — nothing needs to be hardc
 | Unknown measurement or risk ID     | 404  |
 | Invalid `measurementIndex` / no readings logged | 404 |
 | Deleting a baseline reading while other readings exist | 400 |
+| Scoring a numerical measurement / negative `numAbnormal` | 400 |
+| Flags requested for a numerical measurement | 400 |
 | Unknown `newEnvironment`           | 400  |
 | Duplicate username on creation     | 409  |
 | Validation error (e.g. `frequencyDays: 0`) | 400 |

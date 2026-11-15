@@ -44,4 +44,13 @@ public class DataController {
     public List<RiskFactor> getRisks() {
         return dataRetrievalService.getRisks();
     }
+
+    /**
+     * Returns a visual measurement's observable abnormalities, for the
+     * Crew Medical Officer's review checklist.
+     */
+    @GetMapping("/data/measurements/{measurementID}/flags")
+    public List<String> getFlags(@PathVariable("measurementID") String measurementId) {
+        return dataRetrievalService.getFlags(measurementId);
+    }
 }

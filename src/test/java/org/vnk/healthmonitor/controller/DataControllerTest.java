@@ -2,6 +2,7 @@ package org.vnk.healthmonitor.controller;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
@@ -69,5 +70,34 @@ class DataControllerTest {
                 .andExpect(status().isNotFound())
                 .andReturn().getResponse().getContentAsString();
         assertEquals("", body);
+    }
+
+    @Test
+    void getFlagsReturnsTheVisualMeasurementFlags() throws Exception {
+        when(dataRetrievalService.getFlags("m2")).thenReturn(List.of("Cotton wool spots", "Vessel tortuosity"));
+
+        mockMvc.perform(get("/data/measurements/m2/flags"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$", hasSize(2)))
+                .andExpect(jsonPath("$[0]").value("Cotton wool spots"))
+                .andExpect(jsonPath("$[1]").value("Vessel tortuosity"));
+    }
+
+    @Test
+    void flagsForANumericalMeasurementReturn400() throws Exception {
+        when(dataRetrievalService.getFlags("m1")).thenThrow(
+                new ResponseStatusException(HttpStatus.BAD_REQUEST, "Measurement m1 is not a visual measurement"));
+
+        mockMvc.perform(get("/data/measurements/m1/flags"))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void flagsForAnUnknownMeasurementReturn404() throws Exception {
+        when(dataRetrievalService.getFlags("nope")).thenThrow(
+                new ResponseStatusException(NOT_FOUND, "Unknown measurement: nope"));
+
+        mockMvc.perform(get("/data/measurements/nope/flags"))
+                .andExpect(status().isNotFound());
     }
 }
