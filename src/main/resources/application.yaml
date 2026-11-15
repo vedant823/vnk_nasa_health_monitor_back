@@ -10,6 +10,9 @@ spring:
     deserialization:
       fail-on-unknown-properties: false
 
+server:
+  port: ${PORT:8080}
+
 app:
   data-dir: jsonData
   cors:
