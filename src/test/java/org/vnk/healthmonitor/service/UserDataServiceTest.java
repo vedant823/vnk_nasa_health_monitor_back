@@ -5,10 +5,12 @@ import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.server.ResponseStatusException;
 import org.vnk.healthmonitor.domain.dto.BaselineMode;
+import org.vnk.healthmonitor.domain.dto.Environment;
 import org.vnk.healthmonitor.domain.dto.LogMeasurementRequest;
 import org.vnk.healthmonitor.domain.dto.Measurement;
 import org.vnk.healthmonitor.domain.dto.MeasurementCategory;
 import org.vnk.healthmonitor.domain.dto.MeasurementTrend;
+import org.vnk.healthmonitor.domain.dto.Range;
 import org.vnk.healthmonitor.domain.dto.TrendDirection;
 import org.vnk.healthmonitor.domain.document.MeasurementSet;
 import org.vnk.healthmonitor.domain.document.UserDocument;
@@ -55,12 +57,19 @@ class UserDataServiceTest {
 
     private Measurement percentMeasurement(String id) {
         return new Measurement(id, id, MeasurementCategory.NUMERICAL, "kg",
-                -5.0, -2.0, 3.0, 5.0, true, BaselineMode.PERCENT, null, null, List.of());
+                uniformRanges(-5.0, -2.0, 3.0, 5.0), true, BaselineMode.PERCENT, null, null, List.of());
     }
 
     private Measurement plainMeasurement(String id) {
         return new Measurement(id, id, MeasurementCategory.NUMERICAL, "units",
-                3000.0, 4500.0, 11000.0, 30000.0, false, BaselineMode.NONE, null, null, List.of());
+                uniformRanges(3000.0, 4500.0, 11000.0, 30000.0), false, BaselineMode.NONE, null, null, List.of());
+    }
+
+    private static List<Range> uniformRanges(Double dangerousLow, Double abnormalLow,
+                                             Double abnormalHigh, Double dangerousHigh) {
+        return java.util.Arrays.stream(Environment.values())
+                .map(env -> new Range(env, dangerousLow, abnormalLow, abnormalHigh, dangerousHigh))
+                .toList();
     }
 
     @Test
@@ -159,7 +168,7 @@ class UserDataServiceTest {
     @Test
     void visualMeasurementRequiresAnImage() {
         givenMeasurement(new Measurement("oct", "oct", MeasurementCategory.VISUAL, null,
-                null, null, null, null, false, BaselineMode.NONE, null, null, List.of()));
+                uniformRanges(null, null, null, null), false, BaselineMode.NONE, null, null, List.of()));
 
         ResponseStatusException e = assertThrows(ResponseStatusException.class,
                 () -> userDataService.logMeasurement(user, "oct", new LogMeasurementRequest(null, "  ")));
@@ -186,6 +195,29 @@ class UserDataServiceTest {
 
         assertEquals(3, user.frequencyOf("wbc"));
         verify(userData).save(user);
+    }
+
+    @Test
+    void setEnvironmentStoresTheValueAndSaves() {
+        userDataService.setEnvironment(user, "mars");
+
+        assertEquals(Environment.MARS, user.environmentOf());
+        verify(userData).save(user);
+    }
+
+    @Test
+    void setEnvironmentIsCaseInsensitive() {
+        userDataService.setEnvironment(user, "Moon");
+
+        assertEquals(Environment.MOON, user.environmentOf());
+    }
+
+    @Test
+    void unknownEnvironmentReturns400() {
+        ResponseStatusException e = assertThrows(ResponseStatusException.class,
+                () -> userDataService.setEnvironment(user, "spaceship"));
+
+        assertEquals(HttpStatus.BAD_REQUEST, e.getStatusCode());
     }
 
     @Test

@@ -116,6 +116,16 @@ class ApiErrorsFunctionalTest extends FunctionalTestBase {
     }
 
     @Test
+    void invalidEnvironmentReturns400() throws Exception {
+        String token = createAccount(uniqueUsername());
+
+        HttpResponse<String> response = send("PUT", "/users/environment?newEnvironment=spaceship",
+                null, authHeader(token));
+
+        assertEquals(400, response.statusCode());
+    }
+
+    @Test
     void deleteUnknownMeasurementReturns404() throws Exception {
         String token = createAccount(uniqueUsername());
 

@@ -3,9 +3,11 @@ package org.vnk.healthmonitor.service;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.vnk.healthmonitor.domain.dto.BaselineMode;
+import org.vnk.healthmonitor.domain.dto.Environment;
 import org.vnk.healthmonitor.domain.dto.Instruction;
 import org.vnk.healthmonitor.domain.dto.Measurement;
 import org.vnk.healthmonitor.domain.dto.MeasurementCategory;
+import org.vnk.healthmonitor.domain.dto.Range;
 import org.vnk.healthmonitor.domain.dto.RiskEvaluation;
 import org.vnk.healthmonitor.domain.dto.RiskFactor;
 import org.vnk.healthmonitor.domain.document.MeasurementSet;
@@ -49,8 +51,19 @@ class JudgementServiceTest {
                                   BaselineMode baselineMode,
                                   String lowRecommendation, String highRecommendation) {
         return new Measurement(id, id, MeasurementCategory.NUMERICAL, "units",
-                dangerousLow, abnormalLow, abnormalHigh, dangerousHigh, false,
+                uniformRanges(dangerousLow, abnormalLow, abnormalHigh, dangerousHigh), false,
                 baselineMode, lowRecommendation, highRecommendation, List.of());
+    }
+
+    /**
+     * The same bounds for every environment, so only the explicit
+     * per-environment tests exercise different ranges.
+     */
+    private static List<Range> uniformRanges(Double dangerousLow, Double abnormalLow,
+                                             Double abnormalHigh, Double dangerousHigh) {
+        return java.util.Arrays.stream(Environment.values())
+                .map(env -> new Range(env, dangerousLow, abnormalLow, abnormalHigh, dangerousHigh))
+                .toList();
     }
 
     private void logValue(String measurementId, double value) {
@@ -207,7 +220,7 @@ class JudgementServiceTest {
     @Test
     void visualMeasurementsAreExcludedFromScoringButNoted() {
         Measurement visual = new Measurement("v1", "v1", MeasurementCategory.VISUAL, null,
-                null, null, null, null, false, BaselineMode.NONE, null, null, List.of());
+                uniformRanges(null, null, null, null), false, BaselineMode.NONE, null, null, List.of());
         givenMeasurements(visual);
         user.getMeasurementHistory().computeIfAbsent("v1", id -> new ArrayList<>())
                 .add(new MeasurementSet("v1", "user", Instant.now(), null, List.of("image")));
@@ -332,5 +345,38 @@ class JudgementServiceTest {
         RiskFactor risk = new RiskFactor("r1", "Risk", null, List.of("m1"), "reason");
 
         assertEquals(25, judgementService.evaluate(user, risk).score());
+    }
+
+    @Test
+    void environmentSelectsTheRangeUsedForScoring() {
+        // 5200 is normal on the spacecraft but abnormally low on Mars,
+        // where the normal band starts at 6000.
+        Measurement measurement = new Measurement("m1", "m1", MeasurementCategory.NUMERICAL, "units",
+                List.of(new Range(Environment.SPACECRAFT, 3000.0, 4500.0, 11000.0, 30000.0),
+                        new Range(Environment.STATION, null, null, null, null),
+                        new Range(Environment.ROVER, null, null, null, null),
+                        new Range(Environment.MOON, null, null, null, null),
+                        new Range(Environment.MARS, 4000.0, 6000.0, 10000.0, 25000.0)),
+                false, BaselineMode.NONE, null, null, List.of());
+        givenMeasurements(measurement);
+        logValue("m1", 5200);
+        RiskFactor risk = new RiskFactor("r1", "Risk", null, List.of("m1"), "reason");
+
+        assertEquals(100, judgementService.evaluate(user, risk).score());
+
+        user.setEnvironment(Environment.MARS);
+        assertEquals(60, judgementService.evaluate(user, risk).score());
+    }
+
+    @Test
+    void documentsWithoutAnEnvironmentDefaultToSpacecraft() {
+        givenMeasurements(numerical("m1", 3000.0, 4500.0, 11000.0, 30000.0, null, null));
+        // A document saved before environments existed scores with the
+        // spacecraft ranges.
+        logValue("m1", 5200);
+        RiskFactor risk = new RiskFactor("r1", "Risk", null, List.of("m1"), "reason");
+
+        assertEquals(Environment.SPACECRAFT, user.environmentOf());
+        assertEquals(100, judgementService.evaluate(user, risk).score());
     }
 }

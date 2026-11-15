@@ -100,9 +100,12 @@ public abstract class FunctionalTestBase {
     public record InstructionDto(String image, String text) {
     }
 
+    public record RangeDto(String situation, Double dangerousLow, Double abnormalLow,
+                           Double abnormalHigh, Double dangerousHigh) {
+    }
+
     public record MeasurementDto(String id, String name, String category, String unit,
-                                 Double dangerousLow, Double abnormalLow,
-                                 Double abnormalHigh, Double dangerousHigh,
+                                 java.util.List<RangeDto> ranges,
                                  java.util.List<InstructionDto> instructions) {
     }
 

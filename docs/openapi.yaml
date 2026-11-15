@@ -336,6 +336,49 @@ paths:
                 $ref: "#/components/schemas/BadgeSet"
         "401":
           $ref: "#/components/responses/Unauthorized"
+  /users/environment:
+    get:
+      tags: [User data]
+      operationId: getEnvironment
+      summary: Get the user's current environment
+      description:
+        Returns the environment the user is currently in (spacecraft, station,
+        rover, moon, or mars). It selects the guideline ranges used for risk
+        scoring and badge evaluation. New accounts default to spacecraft.
+      security: [{ bearerAuth: [] }]
+      responses:
+        "200":
+          description: The environment label, e.g. `spacecraft`
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Environment"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+    put:
+      tags: [User data]
+      operationId: setEnvironment
+      summary: Set the user's environment
+      description:
+        Sets the environment the user is in, which determines the guideline
+        ranges used in analysis. The value is given in `newEnvironment` and
+        must be one of spacecraft, station, rover, moon, or mars (case
+        insensitive). Returns an empty 200 body.
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - name: newEnvironment
+          in: query
+          required: true
+          description: The environment to switch to
+          schema:
+            $ref: "#/components/schemas/Environment"
+      responses:
+        "200":
+          description: Updated (empty body)
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
   /data/risks:
     get:
       tags: [Static data]
@@ -515,14 +558,15 @@ components:
           $ref: "#/components/schemas/MeasurementCategory"
         unit:
           type: [string, "null"]
-        dangerousLow:
-          type: [number, "null"]
-        abnormalLow:
-          type: [number, "null"]
-        abnormalHigh:
-          type: [number, "null"]
-        dangerousHigh:
-          type: [number, "null"]
+        ranges:
+          type: array
+          description: >
+            One range per environment (spacecraft, station, rover, moon, mars).
+            Scoring and badge evaluation use the range matching the user's
+            current environment; inside a range, a null bound means that side
+            does not apply.
+          items:
+            $ref: "#/components/schemas/Range"
         canBeNegative:
           type: boolean
         baselineMode:
@@ -535,6 +579,28 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/Instruction"
+    Range:
+      type: object
+      description: >
+        Guideline bounds for one measurement in one environment. Every bound
+        is optional: a null side does not apply there.
+      properties:
+        situation:
+          $ref: "#/components/schemas/Environment"
+        dangerousLow:
+          type: [number, "null"]
+        abnormalLow:
+          type: [number, "null"]
+        abnormalHigh:
+          type: [number, "null"]
+        dangerousHigh:
+          type: [number, "null"]
+    Environment:
+      type: string
+      enum: [spacecraft, station, rover, moon, mars]
+      description: >
+        The situation the user is in: a spacecraft in transit, a space station
+        in low Earth orbit, a pressurized rover, a Moon base, or a Mars base.
     RiskCategory:
       type: string
       enum: [physical, psychological]

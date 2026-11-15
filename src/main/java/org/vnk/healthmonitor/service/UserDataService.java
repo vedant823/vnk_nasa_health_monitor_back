@@ -4,6 +4,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 import org.vnk.healthmonitor.domain.dto.BaselineMode;
+import org.vnk.healthmonitor.domain.dto.Environment;
 import org.vnk.healthmonitor.domain.dto.LogMeasurementRequest;
 import org.vnk.healthmonitor.domain.dto.Measurement;
 import org.vnk.healthmonitor.domain.dto.MeasurementCategory;
@@ -136,6 +137,22 @@ public class UserDataService {
     public void setFrequency(UserDocument user, String measurementId, int frequencyDays) {
         requireMeasurement(measurementId);
         user.getMeasurementFrequencies().put(measurementId, frequencyDays);
+        userData.save(user);
+    }
+
+    /**
+     * Sets the user's environment, which selects the guideline ranges
+     * used for risk scoring and badge evaluation.
+     */
+    public void setEnvironment(UserDocument user, String newEnvironment) {
+        Environment environment;
+        try {
+            environment = Environment.from(newEnvironment);
+        } catch (IllegalArgumentException e) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "Unknown environment: " + newEnvironment);
+        }
+        user.setEnvironment(environment);
         userData.save(user);
     }
 

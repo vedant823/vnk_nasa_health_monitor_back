@@ -52,8 +52,14 @@ class DataEndpointsFunctionalTest extends FunctionalTestBase {
         MeasurementDto measurement = parse(response.body(), MeasurementDto.class);
         assertEquals("numerical", measurement.category());
         assertNotNull(measurement.unit());
-        assertEquals(4500.0, measurement.abnormalLow());
-        assertEquals(11000.0, measurement.abnormalHigh());
+        // Ranges for every environment, served with the flat fields gone.
+        assertEquals(5, measurement.ranges().size());
+        RangeDto spacecraft = measurement.ranges().stream()
+                .filter(r -> r.situation().equals("spacecraft"))
+                .findFirst()
+                .orElseThrow();
+        assertEquals(4500.0, spacecraft.abnormalLow());
+        assertEquals(11000.0, spacecraft.abnormalHigh());
         assertNotNull(measurement.instructions());
         assertTrue(measurement.instructions().size() > 0);
         assertNotNull(measurement.instructions().get(0).text());
@@ -66,6 +72,6 @@ class DataEndpointsFunctionalTest extends FunctionalTestBase {
 
         MeasurementDto measurement = parse(response.body(), MeasurementDto.class);
         assertEquals("visual", measurement.category());
-        assertNull(measurement.abnormalHigh());
+        assertNull(measurement.ranges().get(0).abnormalHigh());
     }
 }

@@ -4,6 +4,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.server.ResponseStatusException;
 import org.vnk.healthmonitor.domain.dto.BaselineMode;
+import org.vnk.healthmonitor.domain.dto.Environment;
 
 import java.nio.file.Path;
 import java.util.List;
@@ -32,7 +33,7 @@ class DataRetrievalServiceTest {
 
         assertEquals("Test Numerical", measurement.name());
         assertEquals("numerical", measurement.category().getLabel());
-        assertEquals(4500.0, measurement.abnormalLow());
+        assertEquals(4500.0, measurement.rangeFor(Environment.SPACECRAFT).abnormalLow());
         assertEquals(2, measurement.instructions().size());
         assertEquals("First step.", measurement.instructions().get(0).text());
     }
@@ -44,7 +45,7 @@ class DataRetrievalServiceTest {
         var measurement = service.getMeasurement("m2");
 
         assertEquals("visual", measurement.category().getLabel());
-        assertNull(measurement.dangerousLow());
+        assertNull(measurement.rangeFor(Environment.SPACECRAFT).dangerousLow());
         assertEquals(1, measurement.instructions().size());
     }
 
@@ -54,10 +55,10 @@ class DataRetrievalServiceTest {
 
         var measurement = service.getMeasurement("m3");
 
-        assertNull(measurement.dangerousLow());
-        assertNull(measurement.abnormalLow());
-        assertNull(measurement.dangerousHigh());
-        assertEquals(100.0, measurement.abnormalHigh());
+        assertNull(measurement.rangeFor(Environment.SPACECRAFT).dangerousLow());
+        assertNull(measurement.rangeFor(Environment.SPACECRAFT).abnormalLow());
+        assertNull(measurement.rangeFor(Environment.SPACECRAFT).dangerousHigh());
+        assertEquals(100.0, measurement.rangeFor(Environment.SPACECRAFT).abnormalHigh());
     }
 
     @Test
@@ -158,6 +159,46 @@ class DataRetrievalServiceTest {
                 () -> serviceFor("data-bad-desc"));
 
         assertTrue(e.getMessage().contains("has no description"),
+                "Unexpected message: " + e.getMessage());
+    }
+
+    @Test
+    void loadsRangesForEveryEnvironment() {
+        DataRetrievalService service = serviceFor("data");
+
+        var measurement = service.getMeasurement("m1");
+
+        // The fixture varies m1's ranges so scoring tests can prove
+        // environment-dependent analysis.
+        assertEquals(4500.0, measurement.rangeFor(Environment.SPACECRAFT).abnormalLow());
+        assertEquals(5000.0, measurement.rangeFor(Environment.MOON).abnormalLow());
+        assertEquals(6000.0, measurement.rangeFor(Environment.MARS).abnormalLow());
+    }
+
+    @Test
+    void measurementMissingAnEnvironmentRangeFailsFast() {
+        IllegalStateException e = assertThrows(IllegalStateException.class,
+                () -> serviceFor("data-bad-env"));
+
+        assertTrue(e.getMessage().contains("no range for environment moon"),
+                "Unexpected message: " + e.getMessage());
+    }
+
+    @Test
+    void duplicateEnvironmentRangeFailsFast() {
+        IllegalStateException e = assertThrows(IllegalStateException.class,
+                () -> serviceFor("data-bad-dup"));
+
+        assertTrue(e.getMessage().contains("duplicate ranges for environment moon"),
+                "Unexpected message: " + e.getMessage());
+    }
+
+    @Test
+    void unknownEnvironmentSituationFailsFast() {
+        IllegalStateException e = assertThrows(IllegalStateException.class,
+                () -> serviceFor("data-bad-situation"));
+
+        assertTrue(e.getMessage().contains("unknown environment spaceship"),
                 "Unexpected message: " + e.getMessage());
     }
 }

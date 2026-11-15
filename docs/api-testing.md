@@ -67,7 +67,10 @@ property. Works from the Hoppscotch web app, the desktop app, curl, or the brows
 * `GET /data/risks` — every risk factor (IDs, names, categories, child measurement IDs, reasons)
 * `GET /data/risks/{riskID}` — one risk, e.g. `/data/risks/immune_dysregulation`
 * `GET /data/measurements/{measurementID}` — one measurement merged with its instructions,
-  e.g. `/data/measurements/white_blood_cells`
+  e.g. `/data/measurements/white_blood_cells`. Guideline bounds now come as a
+  `ranges` list — one entry per environment (`spacecraft`, `station`, `rover`,
+  `moon`, `mars`) — and the entry matching the user's environment is what
+  scoring and badge evaluation use.
 
 Use the IDs from these responses in the URLs below — nothing needs to be hardcoded.
 
@@ -117,6 +120,11 @@ Use the IDs from these responses in the URLs below — nothing needs to be hardc
   Badges are evaluated live from the measurement history: `distinctDays`
   counts each day once, `streak` requires consecutive days, and `isOk`
   requires each reading to be green (within the normal range, baseline-adjusted).
+* `GET /users/environment` — the environment the user is in (`spacecraft`,
+  `station`, `rover`, `moon`, or `mars`); it selects the guideline ranges used
+  for scoring. New accounts start on the spacecraft.
+* `PUT /users/environment?newEnvironment=mars` — switch the environment.
+  Unknown values return 400; the choice persists on the account.
 * `GET /users/risks` — every risk score for the user
 * `GET /users/risks/immune_dysregulation` — one risk's score, advice, and reason
 * `GET /users/digest` — the daily/weekly/monthly reminder digest, the exact same
@@ -136,5 +144,6 @@ Use the IDs from these responses in the URLs below — nothing needs to be hardc
 | Unknown measurement or risk ID     | 404  |
 | Invalid `measurementIndex` / no readings logged | 404 |
 | Deleting a baseline reading while other readings exist | 400 |
+| Unknown `newEnvironment`           | 400  |
 | Duplicate username on creation     | 409  |
 | Validation error (e.g. `frequencyDays: 0`) | 400 |

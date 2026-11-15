@@ -203,6 +203,24 @@ class UserControllerTest {
     }
 
     @Test
+    void getEnvironmentDelegates() throws Exception {
+        mockMvc.perform(get("/users/environment").header(AUTH, BEARER))
+                .andExpect(status().isOk());
+
+        verify(userLoginService).resolveUser(BEARER);
+    }
+
+    @Test
+    void setEnvironmentDelegatesWithParameter() throws Exception {
+        mockMvc.perform(put("/users/environment")
+                        .header(AUTH, BEARER)
+                        .param("newEnvironment", "mars"))
+                .andExpect(status().isOk());
+
+        verify(userDataService).setEnvironment(user, "mars");
+    }
+
+    @Test
     void getDigestDelegatesToTheScheduler() throws Exception {
         org.vnk.healthmonitor.domain.dto.ReminderDigest digest =
                 new org.vnk.healthmonitor.domain.dto.ReminderDigest(

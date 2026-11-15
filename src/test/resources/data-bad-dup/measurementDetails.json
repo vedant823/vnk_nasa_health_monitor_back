@@ -1,0 +1,182 @@
+{
+  "measurements": [
+    {
+      "id": "m1",
+      "name": "Test Numerical",
+      "type": "numerical",
+      "unit": "test units",
+      "ranges": [
+        {
+          "situation": "spacecraft",
+          "dangerousLow": 3000.0,
+          "abnormalLow": 4500.0,
+          "abnormalHigh": 11000.0,
+          "dangerousHigh": 30000.0
+        },
+        {
+          "situation": "station",
+          "dangerousLow": 3000.0,
+          "abnormalLow": 4500.0,
+          "abnormalHigh": 11000.0,
+          "dangerousHigh": 30000.0
+        },
+        {
+          "situation": "rover",
+          "dangerousLow": 3000.0,
+          "abnormalLow": 4500.0,
+          "abnormalHigh": 11000.0,
+          "dangerousHigh": 30000.0
+        },
+        {
+          "situation": "moon",
+          "dangerousLow": 3500.0,
+          "abnormalLow": 5000.0,
+          "abnormalHigh": 10500.0,
+          "dangerousHigh": 28000.0
+        },
+        {
+          "situation": "mars",
+          "dangerousLow": 4000.0,
+          "abnormalLow": 6000.0,
+          "abnormalHigh": 10000.0,
+          "dangerousHigh": 25000.0
+        },
+        {
+          "situation": "moon",
+          "abnormalHigh": 9999.0
+        }
+      ],
+      "canBeNegative": false,
+      "lowRecommendation": "low advice for m1",
+      "highRecommendation": "high advice for m1"
+    },
+    {
+      "id": "m2",
+      "name": "Test Visual",
+      "type": "visual",
+      "unit": null,
+      "ranges": [
+        {
+          "situation": "spacecraft"
+        },
+        {
+          "situation": "station"
+        },
+        {
+          "situation": "rover"
+        },
+        {
+          "situation": "moon"
+        },
+        {
+          "situation": "mars"
+        }
+      ],
+      "canBeNegative": false
+    },
+    {
+      "id": "m3",
+      "name": "High Only",
+      "type": "numerical",
+      "unit": "test units",
+      "ranges": [
+        {
+          "situation": "spacecraft",
+          "abnormalHigh": 100.0
+        },
+        {
+          "situation": "station",
+          "abnormalHigh": 100.0
+        },
+        {
+          "situation": "rover",
+          "abnormalHigh": 100.0
+        },
+        {
+          "situation": "moon",
+          "abnormalHigh": 100.0
+        },
+        {
+          "situation": "mars",
+          "abnormalHigh": 100.0
+        }
+      ],
+      "canBeNegative": true
+    },
+    {
+      "id": "m4",
+      "name": "Percent From Baseline",
+      "type": "numerical",
+      "unit": "percent change from baseline",
+      "baselineMode": "percent",
+      "ranges": [
+        {
+          "situation": "spacecraft",
+          "dangerousLow": -5.0,
+          "abnormalLow": -2.0,
+          "abnormalHigh": 3.0,
+          "dangerousHigh": 5.0
+        },
+        {
+          "situation": "station",
+          "dangerousLow": -5.0,
+          "abnormalLow": -2.0,
+          "abnormalHigh": 3.0,
+          "dangerousHigh": 5.0
+        },
+        {
+          "situation": "rover",
+          "dangerousLow": -5.0,
+          "abnormalLow": -2.0,
+          "abnormalHigh": 3.0,
+          "dangerousHigh": 5.0
+        },
+        {
+          "situation": "moon",
+          "dangerousLow": -5.0,
+          "abnormalLow": -2.0,
+          "abnormalHigh": 3.0,
+          "dangerousHigh": 5.0
+        },
+        {
+          "situation": "mars",
+          "dangerousLow": -5.0,
+          "abnormalLow": -2.0,
+          "abnormalHigh": 3.0,
+          "dangerousHigh": 5.0
+        }
+      ],
+      "canBeNegative": true
+    },
+    {
+      "id": "m5",
+      "name": "Difference From Baseline",
+      "type": "numerical",
+      "unit": "units change from baseline",
+      "baselineMode": "difference",
+      "ranges": [
+        {
+          "situation": "spacecraft",
+          "abnormalHigh": 20.0
+        },
+        {
+          "situation": "station",
+          "abnormalHigh": 20.0
+        },
+        {
+          "situation": "rover",
+          "abnormalHigh": 20.0
+        },
+        {
+          "situation": "moon",
+          "abnormalHigh": 20.0
+        },
+        {
+          "situation": "mars",
+          "abnormalHigh": 20.0
+        }
+      ],
+      "canBeNegative": true
+    }
+  ]
+}

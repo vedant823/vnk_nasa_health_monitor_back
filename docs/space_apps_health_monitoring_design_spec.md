@@ -76,6 +76,13 @@
       * Returns one risk's score, the advice list (the recommendation string of every violated measurement, most severe first), and a reason string describing each violation.
       * Path: `riskID` — a risk ID from `GET /data/risks`
       * Outputs `RiskEvaluation` — `{riskId, score, advice[], reason}`. Errors: 404 unknown risk
+    * `PUT /users/environment`
+      * Sets the user's environment to the value given in `newEnvironment`. The environment determines the guideline ranges used in analysis.
+      * Query: `newEnvironment` (string, must be a valid value out of "spacecraft", "station", "rover", "moon", and "mars", case-insensitive)
+      * Outputs nothing. Errors: 400 invalid environment
+    * `GET /users/environment`
+      * Returns the user's current environment (a deliberate addition beyond the original PUT-only design, so the frontend can display it and pick the matching graph bands). New accounts default to "spacecraft".
+      * Outputs `String` — the environment label
     * `GET /users/measurements/{measurementID}/trend`
       * Compares the measurement's two most recent baseline-adjusted readings and returns their direction — a lightweight hint for the frontend graphs, no statistical modelling. `up` and `down` are raw directions; whether that is good or bad depends on the measurement.
       * Outputs `MeasurementTrend` — `{measurementId, direction}`, direction `"up"`, `"down"`, `"flat"` (within 0.5%), or `null` with fewer than two readings
@@ -85,8 +92,8 @@
   * **DataController**
     * Serves measurement instructions as well as risk overviews. No authentication: this is the same static content for every user.
     * `GET /data/measurements/{measurementID}`
-      * Returns one measurement's full definition: display name, category, unit, guideline bounds (optional per side), baseline mode, the low/high recommendation strings, and the step-by-step instructions. Merged at startup from `measurementDetails.json` and `measurementInstructions.json`.
-      * Outputs `Measurement` — `{id, name, category, unit, dangerousLow?, abnormalLow?, abnormalHigh?, dangerousHigh?, canBeNegative, baselineMode, lowRecommendation?, highRecommendation?, instructions[]}`, each instruction `{image, text}`. Errors: 404 unknown measurement
+      * Returns one measurement's full definition: display name, category, unit, the per-environment guideline ranges (one `Range` per environment — spacecraft, station, rover, moon, mars — with each bound optional per side), baseline mode, the low/high recommendation strings, and the step-by-step instructions. Merged at startup from `measurementDetails.json` and `measurementInstructions.json`.
+      * Outputs `Measurement` — `{id, name, category, unit, ranges[] (each `{situation, dangerousLow?, abnormalLow?, abnormalHigh?, dangerousHigh?}`), canBeNegative, baselineMode, lowRecommendation?, highRecommendation?, instructions[]}`, each instruction `{image, text}`. Errors: 404 unknown measurement
     * `GET /data/risks/{riskID}`
       * Returns one risk's display name, category, the reason to pay attention to it, and its child measurement IDs (empty for risks with no usable data yet).
       * Outputs `RiskFactor` — `{id, name, category, measurementIds[], reason}`. Errors: 404 unknown risk
@@ -107,7 +114,7 @@
   * **DataRetrievalService**
     * Gets the risk data and measurement instructions using Jackson and records
   * **JudgementService**
-    * Rule-based judging against guideline ranges (no statistics, no AI). Each numerical measurement’s latest value is classified against the ranges in `measurementDetails.json`: below `abnormalLow` (or above `abnormalHigh`) is abnormal, and beyond `dangerousLow`/`dangerousHigh` is dangerous. Scoring starts at 100; each abnormal measurement subtracts 40 and each dangerous one subtracts 75, stacking and floored at 1. The recommendation string matching the violated side of every abnormal measurement is collected into the advice (a list), ordered most severe first. Visual measurements are stored but excluded from scoring for the time being.
+    * Rule-based judging against the guideline ranges for the user's environment (no statistics, no AI). Each numerical measurement's latest value is classified against the range in `measurementDetails.json` matching the user's environment: below `abnormalLow` (or above `abnormalHigh`) is abnormal, and beyond `dangerousLow`/`dangerousHigh` is dangerous. Scoring starts at 100; each abnormal measurement subtracts 40 and each dangerous one subtracts 75, stacking and floored at 1. The recommendation string matching the violated side of every abnormal measurement is collected into the advice (a list), ordered most severe first. Visual measurements are stored but excluded from scoring for the time being.
   * **BadgeService**
     * Checks if a badge has been earned and delivers a `BadgeDetails` object based off of the user's history.
 * **Repositories / Databases**
@@ -132,7 +139,7 @@
       * Contains a criterion's set of valid measurements and some booleans dictating its behavior as well as an integer specifying its length.
   * **Non-static classes:**
     * `User` + `User (document)`
-      * Contains a user’s username, hashed password, and current token (?)
+      * Contains a user’s username, hashed password, and current token as well as their environment.
       * Document class contains a map of measurement IDs to MeasurementSet objects
     * `MeasurementSet`
       * Contains a list / array of numbers or images along with the user ID it is associated with and the Measurement ID it corresponds to
@@ -153,7 +160,7 @@
       * Contains the instructions for each measurement: A list of measurements, which each have an ID and a list of instructions with an image and text for each.
       * Will also be adjusted after the code is complete
     * `measurementDetails.json`
-      * Contains each measurement’s display name, type (numerical, visual), unit, and for numerical values: upper and lower bounds around abnormal and dangerous levels (4 doubles, each optional — a missing side does not apply), a boolean indicating whether it can be negative, and 2 optional recommendation strings for an unusually low and high number.
+      * Contains each measurement's display name, type (numerical, visual), unit, and for numerical values a `ranges` list — one `Range` per environment ("spacecraft", "station", "rover", "moon", "mars"), each holding the four optional bounds around abnormal and dangerous levels (a missing side does not apply) — plus a boolean indicating whether the value can be negative, and 2 optional recommendation strings for an unusually low and high number. The user's environment selects which range is used in analysis.
     * `badges.json`
       * Contains each badge and its nested criteria: Each badge has a title, a description string explaining how to earn it, and a list of criteria; each criterion has a set of valid measurements, some booleans dictating its behavior, and an integer dictating its length.
 
@@ -173,7 +180,7 @@
 * **API client artifacts:** `docs/openapi.yaml` (OpenAPI 3.1, every endpoint and schema, mirrors the descriptive REST section above; importable into Hoppscotch, Postman, and Insomnia).
 * **Testing:** Two-layer suite. Unit tests (plain JUnit + Mockito; services with mocked dependencies and a fixed `Clock`, controllers via standalone MockMvc with mocked services) run with `./gradlew test` and need no external services. Functional tests (tagged `functional`, `@SpringBootTest(RANDOM_PORT)` driving the fully booted app over real HTTP against the Dockerized MongoDB in the dedicated `healthmonitor-functional` database) run with `./gradlew functionalTest` after `docker-compose up -d`; they cover the complete user journey, auth and error paths (missing header → 400, invalid token → 401, unknown IDs → 404, duplicate username → 409, validation errors → 400), the data endpoints, CORS preflight/actual requests for the Hoppscotch origin, and the notification digests. The functional database is dropped before each test class and again when the test JVM exits, so runs leave no permanent data behind. (Note: the database URIs must use `spring.mongodb.uri` — Spring Boot 4 deprecated `spring.data.mongodb.uri` at error level, and the old key was silently ignored, sending everything to Mongo's default `test` database.)
 * **Package layout:** `controller/`, `service/`, `repository/`, `domain/{dto,document}/`, `config/` (CORS + error handling + Clock + scheduling).
-* **Status:** All spec classes exist; controllers are wired to services; service logic is implemented as described above. Controllers remain pure delegation. The daily/weekly/monthly reminder notifications (the spec's headline requirement) are implemented and tested; the badge system (`GET /users/badges`, `BadgeService`, `badges.json`) is implemented and tested. The test suite is green.
+* **Status:** All spec classes exist; controllers are wired to services; service logic is implemented as described above. Controllers remain pure delegation. The daily/weekly/monthly reminder notifications (the spec's headline requirement) are implemented and tested; the badge system (`GET /users/badges`, `BadgeService`, `badges.json`) and the environment feature (`PUT`/`GET /users/environment`, per-environment guideline ranges in `measurementDetails.json` used by scoring and badge evaluation) are implemented and tested. The test suite is green.
 
 ---
 
@@ -189,7 +196,7 @@
 7. **Notification delivery** — replace `LoggingNotificationSender` with a real push/email channel behind the same `NotificationSender` interface. (The `@Scheduled` trigger itself is now covered by a functional test that boots the app with a one-second cron and a counting sender.)
 8. **API documentation & ops** — OpenAPI/Swagger UI, Actuator health endpoints, and a production deployment story (containerized app + MongoDB Atlas or a managed Mongo).
 
-*(Delivered since the original list: the two-layer test suite — unit tests for `UserReminderService`, `JudgementService`, `UserLoginService`, `DataRetrievalService`, `UserDataService`, `NotificationScheduler`, and controller tests, plus functional tests over real HTTP against the Dockerized Mongo — and the scheduled daily/weekly/monthly notifications via `NotificationSender`/`NotificationScheduler`. Also delivered since: user baselines with server-side raw-to-change conversion, the per-measurement trend endpoint, `GET /users/digest`, which serves the exact buckets the scheduled sender delivers over HTTP, the measurement-deletion endpoint with baseline protection, and the badge system — `GET /users/badges` evaluated live from history by `BadgeService`, with `badges.json`-defined criteria supporting distinct days, consecutive-day streaks, and green-status readings, served with per-criterion progress fractions.)*
+*(Delivered since the original list: the two-layer test suite — unit tests for `UserReminderService`, `JudgementService`, `UserLoginService`, `DataRetrievalService`, `UserDataService`, `NotificationScheduler`, and controller tests, plus functional tests over real HTTP against the Dockerized Mongo — and the scheduled daily/weekly/monthly notifications via `NotificationSender`/`NotificationScheduler`. Also delivered since: user baselines with server-side raw-to-change conversion, the per-measurement trend endpoint, `GET /users/digest`, which serves the exact buckets the scheduled sender delivers over HTTP, the measurement-deletion endpoint with baseline protection, the badge system — `GET /users/badges` evaluated live from history by `BadgeService`, with `badges.json`-defined criteria supporting distinct days, consecutive-day streaks, and green-status readings, served with per-criterion progress fractions — and the environment feature: `PUT`/`GET /users/environment` with five environments (spacecraft, station, rover, moon, mars), per-environment `ranges` in `measurementDetails.json` (fail-fast validated to cover every environment), and environment-dependent classification in `JudgementService` and `BadgeService`.)*
 
 ### Frontend (React)
 1. **Screens** — login, home (risk grid + measurement list), reminders (day/week/month), risk detail, measurement overview (graph + frequency dropdown), and measurement performance (instructions + input) screens, all parameterized by backend IDs.

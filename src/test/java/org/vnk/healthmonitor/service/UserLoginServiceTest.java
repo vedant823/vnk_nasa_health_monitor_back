@@ -70,6 +70,8 @@ class UserLoginServiceTest {
         // Every known measurement gets the configured default frequency.
         assertEquals(7, saved.frequencyOf("m1"));
         assertEquals(7, saved.frequencyOf("m2"));
+        // New accounts start on the spacecraft.
+        assertEquals(org.vnk.healthmonitor.domain.dto.Environment.SPACECRAFT, saved.environmentOf());
     }
 
     @Test

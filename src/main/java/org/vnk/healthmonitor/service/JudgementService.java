@@ -2,6 +2,8 @@ package org.vnk.healthmonitor.service;
 
 import org.springframework.stereotype.Service;
 import org.vnk.healthmonitor.domain.dto.Measurement;
+import org.vnk.healthmonitor.domain.dto.Environment;
+import org.vnk.healthmonitor.domain.dto.Range;
 import org.vnk.healthmonitor.domain.dto.RiskEvaluation;
 import org.vnk.healthmonitor.domain.dto.RiskFactor;
 import org.vnk.healthmonitor.domain.document.MeasurementSet;
@@ -40,9 +42,11 @@ public class JudgementService {
     }
 
     /**
-     * Evaluates one risk factor for a user.
+     * Evaluates one risk factor for the user, classifying each latest
+     * reading against the guideline ranges for the user's environment.
      */
     public RiskEvaluation evaluate(UserDocument user, RiskFactor risk) {
+        Environment environment = user.environmentOf();
         List<Anomaly> dangerous = new ArrayList<>();
         List<Anomaly> abnormal = new ArrayList<>();
         boolean hasVisual = false;
@@ -61,7 +65,7 @@ public class JudgementService {
             double raw = average(latest.getValues());
             Double change = user.changeFromBaseline(measurementId, raw, measurement.baselineMode());
             double value = change != null ? change : raw;
-            Band band = classify(value, measurement);
+            Band band = classify(value, measurement.rangeFor(environment));
             if (band == Band.NORMAL) {
                 continue;
             }
@@ -104,17 +108,17 @@ public class JudgementService {
         return evaluations;
     }
 
-    private Band classify(double value, Measurement measurement) {
-        if (measurement.dangerousLow() != null && value < measurement.dangerousLow()) {
+    private Band classify(double value, Range range) {
+        if (range.dangerousLow() != null && value < range.dangerousLow()) {
             return Band.DANGEROUS_LOW;
         }
-        if (measurement.abnormalLow() != null && value < measurement.abnormalLow()) {
+        if (range.abnormalLow() != null && value < range.abnormalLow()) {
             return Band.ABNORMAL_LOW;
         }
-        if (measurement.dangerousHigh() != null && value > measurement.dangerousHigh()) {
+        if (range.dangerousHigh() != null && value > range.dangerousHigh()) {
             return Band.DANGEROUS_HIGH;
         }
-        if (measurement.abnormalHigh() != null && value > measurement.abnormalHigh()) {
+        if (range.abnormalHigh() != null && value > range.abnormalHigh()) {
             return Band.ABNORMAL_HIGH;
         }
         return Band.NORMAL;

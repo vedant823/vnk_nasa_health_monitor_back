@@ -7,6 +7,7 @@ import org.vnk.healthmonitor.domain.dto.BadgeStatus;
 import org.vnk.healthmonitor.domain.dto.Criterion;
 import org.vnk.healthmonitor.domain.dto.Measurement;
 import org.vnk.healthmonitor.domain.dto.MeasurementCategory;
+import org.vnk.healthmonitor.domain.dto.Range;
 import org.vnk.healthmonitor.domain.document.MeasurementSet;
 import org.vnk.healthmonitor.domain.document.UserDocument;
 
@@ -132,10 +133,10 @@ public class BadgeService {
     }
 
     /**
-     * Whether one reading is within the measurement's normal range,
-     * baseline-adjusted the same way the risk scoring and the history
-     * endpoint convert values. Visual measurements have no ranges, so
-     * they are never green.
+     * Whether one reading is within the measurement's normal range for
+     * the user's environment, baseline-adjusted the same way the risk
+     * scoring and the history endpoint convert values. Visual
+     * measurements have no ranges, so they are never green.
      */
     private boolean isGreen(UserDocument user, String measurementId,
                             MeasurementSet set, Measurement measurement) {
@@ -145,20 +146,20 @@ public class BadgeService {
         double raw = average(set.getValues());
         Double change = user.changeFromBaseline(measurementId, raw, measurement.baselineMode());
         double value = change != null ? change : raw;
-        return isWithinNormalRange(value, measurement);
+        return isWithinNormalRange(value, measurement.rangeFor(user.environmentOf()));
     }
 
-    private boolean isWithinNormalRange(double value, Measurement measurement) {
-        if (measurement.dangerousLow() != null && value < measurement.dangerousLow()) {
+    private boolean isWithinNormalRange(double value, Range range) {
+        if (range.dangerousLow() != null && value < range.dangerousLow()) {
             return false;
         }
-        if (measurement.abnormalLow() != null && value < measurement.abnormalLow()) {
+        if (range.abnormalLow() != null && value < range.abnormalLow()) {
             return false;
         }
-        if (measurement.abnormalHigh() != null && value > measurement.abnormalHigh()) {
+        if (range.abnormalHigh() != null && value > range.abnormalHigh()) {
             return false;
         }
-        if (measurement.dangerousHigh() != null && value > measurement.dangerousHigh()) {
+        if (range.dangerousHigh() != null && value > range.dangerousHigh()) {
             return false;
         }
         return true;

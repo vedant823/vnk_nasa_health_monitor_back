@@ -1,0 +1,17 @@
+{
+  "measurements": [
+    {
+      "id": "m1",
+      "instructions": [
+        { "image": "images/m1/step1.png", "text": "First step." },
+        { "image": "images/m1/step2.png", "text": "Second step." }
+      ]
+    },
+    {
+      "id": "m2",
+      "instructions": [
+        { "image": "images/m2/step1.png", "text": "Capture image." }
+      ]
+    }
+  ]
+}

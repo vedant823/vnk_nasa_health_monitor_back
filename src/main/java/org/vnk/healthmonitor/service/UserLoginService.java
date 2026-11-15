@@ -41,6 +41,7 @@ public class UserLoginService {
         }
         String token = UUID.randomUUID().toString();
         UserDocument user = new UserDocument(request.username(), passwordEncoder.encode(request.password()), token);
+        user.setEnvironment(org.vnk.healthmonitor.domain.dto.Environment.SPACECRAFT);
         for (String measurementId : dataRetrievalService.getMeasurementIds()) {
             user.getMeasurementFrequencies().put(measurementId, defaultFrequencyDays);
         }

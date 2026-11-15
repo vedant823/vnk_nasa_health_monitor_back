@@ -10,6 +10,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import org.vnk.healthmonitor.domain.dto.BaselineMode;
+import org.vnk.healthmonitor.domain.dto.Environment;
 
 /**
  * One user account: username, hashed password, and current token.
@@ -42,6 +43,9 @@ public class UserDocument {
 
     /** Raw baseline reading per measurement, keyed by measurement ID. */
     private Map<String, Double> measurementBaselines = new HashMap<>();
+
+    /** The user's current environment, stored as its label (e.g. "spacecraft"). */
+    private String environment;
 
     public UserDocument() {
     }
@@ -156,5 +160,19 @@ public class UserDocument {
 
     public Instant lastTakenOf(String measurementId) {
         return measurementLastTaken.get(measurementId);
+    }
+
+    /**
+     * The user's current environment, which selects the guideline ranges
+     * used for risk scoring and badge evaluation. Documents saved before
+     * environments existed default to the spacecraft, the same way a
+     * missing frequency falls back to the default.
+     */
+    public Environment environmentOf() {
+        return environment == null ? Environment.SPACECRAFT : Environment.from(environment);
+    }
+
+    public void setEnvironment(Environment environment) {
+        this.environment = environment.getLabel();
     }
 }

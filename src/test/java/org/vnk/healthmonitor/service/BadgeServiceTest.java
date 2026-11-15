@@ -5,6 +5,7 @@ import org.junit.jupiter.api.Test;
 import org.vnk.healthmonitor.domain.dto.Badge;
 import org.vnk.healthmonitor.domain.dto.BadgeSet;
 import org.vnk.healthmonitor.domain.dto.BadgeStatus;
+import org.vnk.healthmonitor.domain.dto.Environment;
 import org.vnk.healthmonitor.domain.document.MeasurementSet;
 import org.vnk.healthmonitor.domain.document.UserDocument;
 
@@ -214,6 +215,21 @@ class BadgeServiceTest {
         BadgeSet set = badgeService.evaluate(user);
 
         assertEquals("Log any measurement once.", badgeByTitle(set, "One Reading").description());
+    }
+
+    @Test
+    void isOkUsesTheEnvironmentRanges() {
+        // 4800 is green on the spacecraft (normal starts at 4500) but
+        // abnormally low on the Moon (normal starts at 5000 there).
+        log("m1", DAY1, 4800.0);
+        log("m1", DAY2, 4800.0);
+
+        assertTrue(badgeService.evaluate(user).earned().stream()
+                .anyMatch(b -> b.title().equals("Green Days")));
+
+        user.setEnvironment(Environment.MOON);
+        BadgeStatus status = unearnedByTitle(badgeService.evaluate(user), "Green Days");
+        assertEquals(0.0, status.progress().get(0));
     }
 
     @Test

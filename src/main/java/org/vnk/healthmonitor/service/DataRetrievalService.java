@@ -4,9 +4,11 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import org.vnk.healthmonitor.domain.dto.BaselineMode;
 import org.vnk.healthmonitor.domain.dto.Badge;
 import org.vnk.healthmonitor.domain.dto.Criterion;
+import org.vnk.healthmonitor.domain.dto.Environment;
 import org.vnk.healthmonitor.domain.dto.Instruction;
 import org.vnk.healthmonitor.domain.dto.Measurement;
 import org.vnk.healthmonitor.domain.dto.MeasurementCategory;
+import org.vnk.healthmonitor.domain.dto.Range;
 import org.vnk.healthmonitor.domain.dto.RiskFactor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
@@ -53,14 +55,20 @@ public class DataRetrievalService {
             String name,
             String type,
             String unit,
-            Double dangerousLow,
-            Double abnormalLow,
-            Double abnormalHigh,
-            Double dangerousHigh,
+            List<RawRange> ranges,
             Boolean canBeNegative,
             String baselineMode,
             String lowRecommendation,
             String highRecommendation) {
+    }
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    private record RawRange(
+            String situation,
+            Double dangerousLow,
+            Double abnormalLow,
+            Double abnormalHigh,
+            Double dangerousHigh) {
     }
 
     private final Map<String, Measurement> measurements = new HashMap<>();
@@ -106,10 +114,7 @@ public class DataRetrievalService {
                         raw.name(),
                         MeasurementCategory.from(raw.type()),
                         raw.unit(),
-                        raw.dangerousLow(),
-                        raw.abnormalLow(),
-                        raw.abnormalHigh(),
-                        raw.dangerousHigh(),
+                        rangesOf(raw.id(), raw.ranges()),
                         raw.canBeNegative() != null && raw.canBeNegative(),
                         raw.baselineMode() == null
                                 ? BaselineMode.NONE
@@ -164,6 +169,39 @@ public class DataRetrievalService {
                 }
             }
         }
+    }
+
+    /**
+     * Converts one measurement's raw range entries into validated Range
+     * records. Every measurement must define exactly one range per
+     * environment — analysis always has bounds to work with, and a
+     * typo'd or missing situation aborts the application at startup.
+     */
+    private List<Range> rangesOf(String measurementId, List<RawRange> rawRanges) {
+        List<Range> ranges = new ArrayList<>();
+        for (RawRange raw : rawRanges) {
+            Environment situation;
+            try {
+                situation = Environment.from(raw.situation());
+            } catch (IllegalArgumentException e) {
+                throw new IllegalStateException("Measurement " + measurementId
+                        + " references unknown environment " + raw.situation(), e);
+            }
+            if (ranges.stream().anyMatch(r -> r.situation() == situation)) {
+                throw new IllegalStateException("Measurement " + measurementId
+                        + " has duplicate ranges for environment " + raw.situation());
+            }
+            ranges.add(new Range(situation, raw.dangerousLow(), raw.abnormalLow(),
+                    raw.abnormalHigh(), raw.dangerousHigh()));
+        }
+        for (Environment environment : Environment.values()) {
+            boolean covered = ranges.stream().anyMatch(r -> r.situation() == environment);
+            if (!covered) {
+                throw new IllegalStateException("Measurement " + measurementId
+                        + " has no range for environment " + environment.getLabel());
+            }
+        }
+        return List.copyOf(ranges);
     }
 
     /**

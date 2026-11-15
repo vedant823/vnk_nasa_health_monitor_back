@@ -151,6 +151,27 @@ public class UserController {
     }
 
     /**
+     * Returns the user's current environment, which selects the guideline
+     * ranges used for risk scoring and badge evaluation.
+     */
+    @GetMapping("/users/environment")
+    public String getEnvironment(@RequestHeader("Authorization") String authorization) {
+        UserDocument user = userLoginService.resolveUser(authorization);
+        return user.environmentOf().getLabel();
+    }
+
+    /**
+     * Sets the user's environment. Invalid values are rejected with 400.
+     */
+    @PutMapping("/users/environment")
+    public void setEnvironment(
+            @RequestHeader("Authorization") String authorization,
+            @RequestParam("newEnvironment") String newEnvironment) {
+        UserDocument user = userLoginService.resolveUser(authorization);
+        userDataService.setEnvironment(user, newEnvironment);
+    }
+
+    /**
      * Returns the direction of a measurement's two most recent readings
      * (up, down, or flat; null when there is not enough history).
      */
